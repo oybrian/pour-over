@@ -74,6 +74,9 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
   <div id="view-brew">
     <div class="card">
       <h2>Your coffee</h2>
+      <button class="btn ghost small" id="scan-btn" style="margin-bottom:12px">Scan coffee bag</button>
+      <input type="file" id="scan-file" accept="image/*" class="hidden">
+      <div class="field hidden" id="scan-status-wrap"><label>Scan result</label><div id="scan-status" style="font-size:14px;color:var(--sub)"></div></div>
       <div class="field"><label>Bean</label><input id="in-bean" autocomplete="off" placeholder="Type to search…"><div class="combo-list" id="list-bean"></div></div>
       <div class="field"><label>Origin / region</label><input id="in-origin" autocomplete="off" placeholder="Type to search…"><div class="combo-list" id="list-origin"></div></div>
       <div class="field"><label>Process</label><input id="in-process" autocomplete="off" placeholder="Washed, Honey, Natural…"><div class="combo-list" id="list-process"></div></div>
@@ -389,6 +392,95 @@ function renderLog(){
   });
 }
 
+/* ================= bag scanner (OCR) ================= */
+function loadTesseract(){
+  return new Promise((resolve,reject)=>{
+    if(window.Tesseract) return resolve(window.Tesseract);
+    const s=document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    s.onload=()=>resolve(window.Tesseract);
+    s.onerror=()=>reject(new Error("OCR library failed to load"));
+    document.head.appendChild(s);
+  });
+}
+function parseBagText(text){
+  const t=text.toLowerCase();
+  const out={bean:"",origin:"",process:"",alt:"",roast:"",customBean:false,customOrigin:false};
+  // process
+  if(/\banaerobic\b/.test(t)) out.process="Natural";
+  else if(/\bnatural\b/.test(t)) out.process="Natural";
+  else if(/\bhoney\b/.test(t)) out.process="Honey";
+  else if(/\bwashed\b/.test(t)) out.process="Washed";
+  // roast
+  if(/\blight( roast)?\b/.test(t)) out.roast="Light";
+  else if(/\bmedium( roast)?\b/.test(t)) out.roast="Medium";
+  else if(/\bdark( roast)?\b/.test(t)) out.roast="Dark";
+  // altitude: e.g. 1800m, 1,800m, 2100 masl
+  const am=t.match(/(\d[\d,]{2,})\s*m(\.a\.s\.l\.|asl)?/);
+  if(am){
+    const m=parseInt(am[1].replace(/,/g,""),10);
+    if(m>=1800) out.alt="High (1,800m+)";
+    else if(m>=1200) out.alt="Medium (1,200–1,800m)";
+    else out.alt="Low (<1,200m)";
+  }
+  // origin: match known origin keywords
+  const ORIGIN_KEYS=[
+    ["yirgacheffe","Ethiopia — Yirgacheffe"],["guji","Ethiopia — Guji"],
+    ["sidamo","Ethiopia — Sidamo"],["ethiopia","Ethiopia — Yirgacheffe"],
+    ["nyeri","Kenya — Nyeri / Kirinyaga"],["kirinyaga","Kenya — Nyeri / Kirinyaga"],
+    ["kenya","Kenya — Nyeri / Kirinyaga"],["huila","Colombia — Huila"],
+    ["nari","Colombia — Nariño"],["colombia","Colombia — Huila"],
+    ["cerrado","Brazil — Cerrado"],["brazil","Brazil — Cerrado"],
+    ["antigua","Guatemala — Antigua"],["guatemala","Guatemala — Antigua"],
+    ["tarraz","Costa Rica — Tarrazú"],["costa rica","Costa Rica — Tarrazú"],
+    ["rwanda","Rwanda"],["sumatra","Sumatra"],["kona","Hawaii — Kona"],["hawaii","Hawaii — Kona"]
+  ];
+  for(const [k,v] of ORIGIN_KEYS){ if(t.indexOf(k)>=0){ out.origin=v; break; } }
+  // bean varietal
+  const BEAN_KEYS=["heirloom","bourbon","typica","caturra","catuai","gesha","geisha","sl28","sl-28","sl34","sl-34","pacamara","mundo novo","villa sarchi","pacas","kent","java"];
+  const BEAN_MAP={"geisha":"Gesha","sl-28":"SL28","sl-34":"SL34","mundo novo":"Mundo Novo","villa sarchi":"Villa Sarchi"};
+  for(const k of BEAN_KEYS){
+    if(t.indexOf(k)>=0){
+      const canon=BEAN_MAP[k]||k.charAt(0).toUpperCase()+k.slice(1);
+      const hit=BEANS.find(x=>x.toLowerCase()===canon.toLowerCase());
+      out.bean=hit||canon; out.customBean=!hit; break;
+    }
+  }
+  return out;
+}
+function wireScanner(){
+  const btn=$("scan-btn"), file=$("scan-file"), wrap=$("scan-status-wrap"), st=$("scan-status");
+  btn.onclick=()=>file.click();
+  file.onchange=async ()=>{
+    const f=file.files&&file.files[0];
+    if(!f) return;
+    wrap.classList.remove("hidden");
+    st.textContent="Loading OCR…";
+    btn.disabled=true;
+    try{
+      const T=await loadTesseract();
+      st.textContent="Reading the bag… this takes a few seconds.";
+      const res=await T.recognize(f,"eng");
+      const text=(res&&res.data&&res.data.text||"").trim();
+      if(!text){ st.textContent="Could not read any text. Try a clearer photo of the label."; return; }
+      const p=parseBagText(text);
+      const applied=[];
+      if(p.bean){ sel.bean=p.bean; sel.customBean=p.customBean; applied.push("bean: "+p.bean); }
+      if(p.origin){ sel.origin=p.origin; sel.customOrigin=false; applied.push("origin: "+p.origin); }
+      if(p.process){ sel.process=p.process; applied.push("process: "+p.process); }
+      if(p.alt){ sel.alt=p.alt; applied.push("altitude: "+p.alt); }
+      if(p.roast){ sel.roast=p.roast; applied.push("roast: "+p.roast); }
+      applySelToCombos(); onSelChange();
+      st.textContent=applied.length?("Detected — "+applied.join(", ")+". Check and correct if needed.")
+        :("No coffee details recognized. Try a closer photo of the label, or enter manually.");
+    }catch(e){
+      st.textContent="Scan failed ("+e.message+"). Enter the details manually.";
+    }finally{
+      btn.disabled=false; file.value="";
+    }
+  };
+}
+
 /* ================= tabs / persist / init ================= */
 function switchTab(which){
   $("tab-brew").classList.toggle("on",which==="brew");
@@ -425,6 +517,7 @@ function onSelChange(){ saveSel(); lastRecipe=renderRecipe(); }
   buildStars(); paintStars();
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
+  wireScanner();
   $("save-log").onclick=saveBrew;
   $("tab-brew").onclick=()=>switchTab("brew");
   $("tab-log").onclick=()=>switchTab("log");
