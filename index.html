@@ -111,6 +111,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Aroma notes</label><div class="chips" id="chips-aroma"></div></div>
       <div class="field"><label>Flavor notes</label><div class="chips" id="chips-flavor"></div></div>
       <div class="field"><label>Taste profile</label><div id="dims"></div></div>
+      <div class="field"><label>Roaster</label><input id="log-roaster" type="text" autocomplete="off" placeholder="e.g. Onyx, Sey, Prodigal…"></div>
       <div class="field"><label>Notes</label><textarea id="log-notes" placeholder="What stood out? What would you change next time?"></textarea></div>
       <button class="btn primary" id="save-log">Save to brew log</button>
     </div>
@@ -417,6 +418,7 @@ function saveBrew(){
       temp:lastRecipe.temp,grind:lastRecipe.grind.d,ratio:lastRecipe.ratio}:null,
     rating, aroma:[...pickedAroma], flavor:[...pickedFlavor],
     dims:Object.assign({},dimVals),
+    roaster:$("log-roaster").value.trim(),
     notes:$("log-notes").value.trim()
   });
   setLog(log);
@@ -424,6 +426,7 @@ function saveBrew(){
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   $("log-notes").value="";
+  $("log-roaster").value="";
   renderLog();
   alert("Saved to your brew log.");
 }
@@ -436,7 +439,7 @@ function renderLog(){
     const d=new Date(e.date);
     const ds=d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
     const stars="★".repeat(e.rating)+"☆".repeat(5-e.rating);
-    const selLine=[e.bean,e.origin,e.process,e.roast,e.style].filter(Boolean).join(" · ");
+    const selLine=[e.roaster?("☕ "+e.roaster):"",e.bean,e.origin,e.process,e.roast,e.style].filter(Boolean).join(" · ");
     const r=e.recipe?`${e.recipe.dose}g · 1:${e.recipe.ratio} · ${e.recipe.temp}°C · ${esc(e.recipe.grind)}`:"";
     const notes=[];
     if(e.aroma&&e.aroma.length) notes.push("Aroma: "+e.aroma.join(", "));
@@ -628,6 +631,7 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   wireScanner();
   selectAllOnFocus($("in-dose"));
+  selectAllOnFocus($("log-roaster"));
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
   if(sel.dose) $("in-dose").value=sel.dose;
   $("in-dose").addEventListener("input",()=>{
