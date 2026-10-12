@@ -57,6 +57,16 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 .log-item .notes{ font-size:14px; color:#3a3a3c; line-height:1.5; }
 .log-item .r{ color:#f5a623; letter-spacing:2px; }
 .empty{ text-align:center; color:var(--sub); padding:30px 10px; font-size:15px; }
+.dimrow{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.dimrow .dl{ flex:0 0 92px; font-size:14px; color:var(--sub); }
+.dimbar{ display:flex; gap:5px; flex:1; }
+.dimbar button{ flex:1; height:24px; border:1px solid var(--line); background:#fafafa; border-radius:7px; cursor:pointer; padding:0; }
+.dimbar button.on{ background:var(--acc); border-color:var(--acc); }
+.dimview{ display:flex; align-items:center; gap:8px; margin:4px 0; }
+.dimview .dl{ flex:0 0 82px; font-size:13px; color:var(--sub); }
+.dimtrack{ flex:1; height:9px; background:#e9e9ee; border-radius:5px; overflow:hidden; }
+.dimfill{ height:100%; background:var(--acc); border-radius:5px; }
+.dimview .dv{ flex:0 0 14px; font-size:13px; font-weight:600; text-align:right; }
 .search-link{ display:block; text-align:center; margin-top:10px; font-size:14px; color:var(--acc); }
 .hidden{ display:none !important; }
 </style>
@@ -90,11 +100,17 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div id="recipe-body"></div>
       <a class="search-link hidden" id="web-search" href="#" target="_blank" rel="noopener">Search the web for this coffee →</a>
     </div>
+    <div class="card" id="tune-card">
+      <h2>Tune your cup</h2>
+      <div class="chips" id="tune-btns"></div>
+      <div id="tune-desc" style="font-size:14px;color:#3a3a3c;line-height:1.55;margin-top:4px"></div>
+    </div>
     <div class="card hidden" id="logform-card">
       <h2>Log this brew</h2>
       <div class="field"><label>Your rating</label><div class="stars" id="stars"></div></div>
       <div class="field"><label>Aroma notes</label><div class="chips" id="chips-aroma"></div></div>
       <div class="field"><label>Flavor notes</label><div class="chips" id="chips-flavor"></div></div>
+      <div class="field"><label>Taste profile</label><div id="dims"></div></div>
       <div class="field"><label>Notes</label><textarea id="log-notes" placeholder="What stood out? What would you change next time?"></textarea></div>
       <button class="btn primary" id="save-log">Save to brew log</button>
     </div>
@@ -152,6 +168,14 @@ const GRINDS=[
 ];
 const AROMAS=["Floral","Fruity","Citrus","Berry","Chocolate","Nutty","Caramel","Spicy","Earthy","Herbal"];
 const FLAVORS=["Sweet","Bright","Balanced","Clean","Juicy","Heavy body","Light body","Long finish","Bitter","Sour"];
+const TASTE_DIMS=["Sweetness","Acidity","Body","Bitterness","Aroma"];
+const TUNES={
+  brighter:{label:"Brighter", grind:1, temp:0, why:"A coarser grind shortens extraction, letting bright acids shine before bitterness catches up."},
+  sweeter:{label:"Sweeter", grind:-1, temp:1, why:"A finer grind plus hotter water push extraction deeper into the sweet spot."},
+  body:{label:"More body", grind:-1, temp:0, why:"A finer grind boosts extraction and mouthfeel. Keep pours gentle to avoid tipping into bitterness."},
+  lessBitter:{label:"Less bitter", grind:1, temp:-2, why:"Coarser grind and cooler water pull back from the bitter end of extraction."},
+  cleaner:{label:"Cleaner", grind:1, temp:-1, why:"Coarser grind and slow, gentle pours for clarity. Ease off the swirl."}
+};
 
 /* ================= helpers ================= */
 const $=id=>document.getElementById(id);
@@ -242,6 +266,12 @@ function buildRecipe(){
   if(iced&&sel.roast==="Dark") temp-=2;
   temp=clamp(Math.round(temp),85,96);
 
+  const tuneKey=sel.tune&&TUNES[sel.tune]?sel.tune:null;
+  if(tuneKey){
+    grindIdx=clamp(grindIdx+TUNES[tuneKey].grind,0,4);
+    temp=clamp(temp+TUNES[tuneKey].temp,85,96);
+  }
+
   const bloom=Math.round(dose*3);
   const bloomTime=45;
   const ice=iced?Math.round(dose*ratio*0.37):0;
@@ -276,7 +306,7 @@ function buildRecipe(){
   if(sel.customBean||sel.customOrigin) tips.push("This coffee is not in the built-in list, so the recipe uses the process, roast, and altitude settings as the baseline. Use the web search below to find roast-specific tips.");
 
   return { dose, ratio:ratio.toFixed(1), water, hotWater, ice, temp, bloom, bloomTime,
-    grind:GRINDS[grindIdx], grindIdx, steps, totalTime, tips, iced };
+    grind:GRINDS[grindIdx], grindIdx, steps, totalTime, tips, iced, tune:tuneKey };
 }
 
 function renderRecipe(){
@@ -313,6 +343,10 @@ function renderRecipe(){
     ws.classList.remove("hidden");
   }else ws.classList.add("hidden");
 
+  if(r.tune){
+    html=html.replace('<h2>Recipe — Hario V60 (1 cup)</h2>',
+      '<h2>Recipe — Hario V60 (1 cup)</h2><div style="margin-bottom:10px"><span style="display:inline-block;background:var(--acc-soft);color:var(--acc);font-size:13px;font-weight:700;padding:5px 12px;border-radius:12px">Tuned: '+esc(TUNES[r.tune].label)+'</span></div>');
+  }
   // show log form once a full selection exists
   const full=sel.bean&&sel.origin&&sel.process&&sel.alt&&sel.roast&&sel.style;
   $("logform-card").classList.toggle("hidden",!full);
@@ -320,6 +354,29 @@ function renderRecipe(){
 }
 
 /* ================= brew log ================= */
+const dimVals={};
+function buildDims(){
+  const box=$("dims"); box.innerHTML="";
+  TASTE_DIMS.forEach(d=>{
+    dimVals[d]=0;
+    const row=document.createElement("div");
+    row.className="dimrow";
+    const lab=document.createElement("div"); lab.className="dl"; lab.textContent=d;
+    const bar=document.createElement("div"); bar.className="dimbar";
+    for(let i=1;i<=5;i++){
+      const btn=document.createElement("button");
+      btn.type="button"; btn.dataset.v=i;
+      btn.onclick=()=>{ dimVals[d]=i; paintDim(bar,i); };
+      bar.appendChild(btn);
+    }
+    row.appendChild(lab); row.appendChild(bar);
+    box.appendChild(row);
+  });
+}
+function paintDim(bar,v){
+  bar.querySelectorAll("button").forEach(x=>x.classList.toggle("on",+x.dataset.v<=v));
+}
+function resetDims(){ TASTE_DIMS.forEach(d=>{ dimVals[d]=0; }); buildDims(); }
 let rating=0;
 const pickedAroma=new Set(), pickedFlavor=new Set();
 function buildStars(){
@@ -359,10 +416,11 @@ function saveBrew(){
     recipe:lastRecipe?{dose:lastRecipe.dose,water:lastRecipe.water,ice:lastRecipe.ice,
       temp:lastRecipe.temp,grind:lastRecipe.grind.d,ratio:lastRecipe.ratio}:null,
     rating, aroma:[...pickedAroma], flavor:[...pickedFlavor],
+    dims:Object.assign({},dimVals),
     notes:$("log-notes").value.trim()
   });
   setLog(log);
-  rating=0; paintStars(); pickedAroma.clear(); pickedFlavor.clear();
+  rating=0; paintStars(); pickedAroma.clear(); pickedFlavor.clear(); resetDims();
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   $("log-notes").value="";
@@ -384,10 +442,20 @@ function renderLog(){
     if(e.aroma&&e.aroma.length) notes.push("Aroma: "+e.aroma.join(", "));
     if(e.flavor&&e.flavor.length) notes.push("Flavor: "+e.flavor.join(", "));
     if(e.notes) notes.push(e.notes);
+    let dimHtml="";
+    if(e.dims){
+      const setDims=TASTE_DIMS.filter(d=>e.dims[d]>0);
+      if(setDims.length){
+        dimHtml=`<div style="margin:6px 0">`+setDims.map(d=>
+          `<div class="dimview"><div class="dl">${esc(d)}</div><div class="dimtrack"><div class="dimfill" style="width:${e.dims[d]*20}%"></div></div><div class="dv">${e.dims[d]}</div></div>`
+        ).join("")+`</div>`;
+      }
+    }
     return `<div class="log-item" data-id="${e.id}">
       <div class="meta">${ds}</div>
       <div class="sel"><span class="r">${stars}</span> ${esc(selLine)}</div>
       ${r?`<div class="meta">${esc(r)}${e.recipe.ice?` · ${e.recipe.ice}g ice`:""}</div>`:""}
+      ${dimHtml}
       ${notes.length?`<div class="notes">${notes.map(esc).join("<br>")}</div>`:""}
       <div style="margin-top:6px"><button type="button" class="btn ghost small" data-del="${e.id}" style="width:auto;padding:6px 14px;font-size:13px">Delete</button></div>
     </div>`;
@@ -491,6 +559,31 @@ function wireScanner(){
   };
 }
 
+/* ================= tune ================= */
+function buildTunes(){
+  const box=$("tune-btns"); box.innerHTML="";
+  Object.keys(TUNES).forEach(k=>{
+    const btn=document.createElement("button");
+    btn.type="button"; btn.textContent=TUNES[k].label; btn.dataset.k=k;
+    if(sel.tune===k) btn.classList.add("on");
+    btn.onclick=()=>{
+      sel.tune=(sel.tune===k)?null:k;
+      saveSel(); buildTunes(); lastRecipe=renderRecipe();
+    };
+    box.appendChild(btn);
+  });
+  const d=$("tune-desc");
+  if(sel.tune){
+    const t=TUNES[sel.tune];
+    const parts=[];
+    if(t.grind) parts.push((t.grind>0?"grind "+t.grind+" step coarser":"grind "+(-t.grind)+" step finer"));
+    if(t.temp) parts.push((t.temp>0?"+":"")+t.temp+"°C water");
+    d.innerHTML="<b>Adjusting:</b> "+esc(parts.join(" · ")+". ")+esc(t.why)+" Tap again to reset.";
+  }else{
+    d.textContent="Pick what you want more of — the recipe adjusts instantly.";
+  }
+}
+
 /* ================= tabs / persist / init ================= */
 function switchTab(which){
   $("tab-brew").classList.toggle("on",which==="brew");
@@ -514,7 +607,7 @@ function applySelToCombos(){
   $("in-dose").value=sel.dose||"";
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
 }
-function onSelChange(){ saveSel(); lastRecipe=renderRecipe(); }
+function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
 
 (function init(){
   try{ Object.assign(sel,JSON.parse(localStorage.getItem(LS_SEL)||"{}")); }catch(e){}
@@ -528,6 +621,8 @@ function onSelChange(){ saveSel(); lastRecipe=renderRecipe(); }
     onSelChange(); });
   applySelToCombos();
 
+  buildDims();
+  buildTunes();
   buildStars(); paintStars();
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
