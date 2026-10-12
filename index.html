@@ -83,6 +83,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Altitude</label><input id="in-alt" autocomplete="off" placeholder="Low, Medium, High…"><div class="combo-list" id="list-alt"></div></div>
       <div class="field"><label>Roast</label><input id="in-roast" autocomplete="off" placeholder="Light, Medium, Dark…"><div class="combo-list" id="list-roast"></div></div>
       <div class="field"><label>Hot / Iced</label><input id="in-style" autocomplete="off" placeholder="Hot, Iced…"><div class="combo-list" id="list-style"></div></div>
+      <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
     </div>
     <div class="card" id="recipe-card">
       <h2>Recipe — Hario V60 (1 cup)</h2>
@@ -157,8 +158,14 @@ const LS_SEL="bloom_sel_v1", LS_LOG="bloom_log_v1";
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 /* ================= state ================= */
-const sel={ bean:"", origin:"", process:"", alt:"", roast:"", style:"",
-  customBean:false, customOrigin:false };
+const sel={ bean:"", origin:"", process:"", alt:"", roast:"", style:"", dose:"",
+  customBean:false, customOrigin:false, doseManual:false };
+/* select-all on focus for the dose field (iOS Safari: type=number ignores select()) */
+function selectAllOnFocus(el){
+  const s=()=>{ try{ el.select(); }catch(e){} };
+  el.addEventListener("focus",()=>{ s(); requestAnimationFrame(s); setTimeout(s,100); });
+  el.addEventListener("click",()=>{ if(document.activeElement===el) s(); });
+}
 
 /* ================= searchable combo ================= */
 function makeCombo(inputId, listId, options, onPick){
@@ -217,7 +224,8 @@ function buildRecipe(){
   const alt=findByName(ALTS,sel.alt);
   const origin=ORIGINS.find(o=>o.n===sel.origin);
 
-  const dose=iced?20:15;
+  const doseNum=parseFloat(sel.dose);
+  const dose=(doseNum>0&&doseNum<=60)?Math.round(doseNum*10)/10:(iced?20:15);
   let ratio=iced?16:roast.ratio;
   if(!iced&&proc&&proc.n==="Honey") ratio=16;
 
@@ -501,6 +509,8 @@ function applySelToCombos(){
   comboAlt.set(sel.alt,false);
   comboRoast.set(sel.roast,false);
   comboStyle.set(sel.style,false);
+  $("in-dose").value=sel.dose||"";
+  $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
 }
 function onSelChange(){ saveSel(); lastRecipe=renderRecipe(); }
 
@@ -511,13 +521,23 @@ function onSelChange(){ saveSel(); lastRecipe=renderRecipe(); }
   comboProcess=makeCombo("in-process","list-process",PROCESSES.map(p=>({n:p.n,sub:p.d})),(v)=>{ sel.process=v; onSelChange(); });
   comboAlt=makeCombo("in-alt","list-alt",ALTS.map(a=>({n:a.n,sub:a.d})),(v)=>{ sel.alt=v; onSelChange(); });
   comboRoast=makeCombo("in-roast","list-roast",ROASTS.map(r=>({n:r.n,sub:""})),(v)=>{ sel.roast=v; onSelChange(); });
-  comboStyle=makeCombo("in-style","list-style",STYLES,(v)=>{ sel.style=v; onSelChange(); });
+  comboStyle=makeCombo("in-style","list-style",STYLES,(v)=>{ sel.style=v;
+    if(!sel.doseManual){ sel.dose=""; $("in-dose").value=""; $("in-dose").placeholder=v==="Iced"?"20":"15"; }
+    onSelChange(); });
   applySelToCombos();
 
   buildStars(); paintStars();
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   wireScanner();
+  selectAllOnFocus($("in-dose"));
+  $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
+  if(sel.dose) $("in-dose").value=sel.dose;
+  $("in-dose").addEventListener("input",()=>{
+    sel.dose=$("in-dose").value.trim();
+    sel.doseManual=!!sel.dose;
+    onSelChange();
+  });
   $("save-log").onclick=saveBrew;
   $("tab-brew").onclick=()=>switchTab("brew");
   $("tab-log").onclick=()=>switchTab("log");
