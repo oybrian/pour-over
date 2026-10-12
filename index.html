@@ -345,8 +345,7 @@ function renderRecipe(){
   }else ws.classList.add("hidden");
 
   if(r.tune){
-    html=html.replace('<h2>Recipe — Hario V60 (1 cup)</h2>',
-      '<h2>Recipe — Hario V60 (1 cup)</h2><div style="margin-bottom:10px"><span style="display:inline-block;background:var(--acc-soft);color:var(--acc);font-size:13px;font-weight:700;padding:5px 12px;border-radius:12px">Tuned: '+esc(TUNES[r.tune].label)+'</span></div>');
+    html='<div style="margin-bottom:10px"><span style="display:inline-block;background:var(--acc-soft);color:var(--acc);font-size:13px;font-weight:700;padding:5px 12px;border-radius:12px">Tuned: '+esc(TUNES[r.tune].label)+'</span></div>'+html;
   }
   // show log form once a full selection exists
   const full=sel.bean&&sel.origin&&sel.process&&sel.alt&&sel.roast&&sel.style;
@@ -570,8 +569,13 @@ function buildTunes(){
     btn.type="button"; btn.textContent=TUNES[k].label; btn.dataset.k=k;
     if(sel.tune===k) btn.classList.add("on");
     btn.onclick=()=>{
-      sel.tune=(sel.tune===k)?null:k;
+      const turningOn=sel.tune!==k;
+      sel.tune=turningOn?k:null;
       saveSel(); buildTunes(); lastRecipe=renderRecipe();
+      if(turningOn){
+        const rc=$("recipe-card");
+        if(rc&&rc.scrollIntoView) rc.scrollIntoView({behavior:"smooth",block:"start"});
+      }
     };
     box.appendChild(btn);
   });
