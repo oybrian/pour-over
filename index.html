@@ -69,6 +69,11 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 .dimview .dv{ flex:0 0 14px; font-size:13px; font-weight:600; text-align:right; }
 .search-link{ display:block; text-align:center; margin-top:10px; font-size:14px; color:var(--acc); }
 .hidden{ display:none !important; }
+.more-opts{ margin-top:4px; }
+.more-opts summary{ font-size:14px; color:var(--acc); font-weight:600; cursor:pointer; padding:8px 0; list-style:none; }
+.more-opts summary::-webkit-details-marker{ display:none; }
+.more-opts summary::before{ content:"+ "; }
+.more-opts[open] summary::before{ content:"− "; }
 /* faint coffee-ring stains on the brew log card */
 #view-log .card{
   background-color:#fff;
@@ -97,18 +102,24 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
   <div id="view-brew">
     <div class="card">
       <h2>Your coffee</h2>
-      <button class="btn ghost small" id="scan-btn" style="margin-bottom:12px">Scan coffee bag</button>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn ghost small" id="scan-btn" style="flex:1">Scan coffee bag</button>
+        <button class="btn ghost small" id="clear-btn" style="flex:0 0 auto">Clear</button>
+      </div>
       <input type="file" id="scan-file" accept="image/*" class="hidden">
       <div class="field hidden" id="scan-status-wrap"><label>Scan result</label><div id="scan-status" style="font-size:14px;color:var(--sub)"></div></div>
       <div class="field"><label>Bean</label><input id="in-bean" autocomplete="off" placeholder="Type to search…"><div class="combo-list" id="list-bean"></div></div>
       <div class="field"><label>Origin / region</label><input id="in-origin" autocomplete="off" placeholder="Type to search…"><div class="combo-list" id="list-origin"></div></div>
       <div class="field"><label>Process</label><input id="in-process" autocomplete="off" placeholder="Washed, Honey, Natural…"><div class="combo-list" id="list-process"></div></div>
-      <div class="field"><label>Altitude</label><input id="in-alt" autocomplete="off" placeholder="Low, Medium, High…"><div class="combo-list" id="list-alt"></div></div>
       <div class="field"><label>Roast</label><input id="in-roast" autocomplete="off" placeholder="Light, Medium, Dark…"><div class="combo-list" id="list-roast"></div></div>
       <div class="field"><label>Hot / Iced</label><input id="in-style" autocomplete="off" placeholder="Hot, Iced…"><div class="combo-list" id="list-style"></div></div>
-      <div class="field"><label>Grinder</label><input id="in-grinder" autocomplete="off" placeholder="Select your grinder…"><div class="combo-list" id="list-grinder"></div></div>
-      <div class="field"><label>Pour style</label><input id="in-pour" autocomplete="off" placeholder="2 pours"><div class="combo-list" id="list-pour"></div></div>
       <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
+      <details class="more-opts">
+        <summary>More options</summary>
+        <div class="field"><label>Grinder</label><input id="in-grinder" autocomplete="off" placeholder="Select your grinder…"><div class="combo-list" id="list-grinder"></div></div>
+        <div class="field"><label>Pour style</label><input id="in-pour" autocomplete="off" placeholder="2 pours"><div class="combo-list" id="list-pour"></div></div>
+        <div class="field"><label>Altitude</label><input id="in-alt" autocomplete="off" placeholder="Low, Medium, High…"><div class="combo-list" id="list-alt"></div></div>
+      </details>
     </div>
     <div class="card" id="recipe-card">
       <h2>Recipe — Hario V60 (1 cup)</h2>
@@ -713,6 +724,7 @@ function parseBagText(text){
 function wireScanner(){
   const btn=$("scan-btn"), file=$("scan-file"), wrap=$("scan-status-wrap"), st=$("scan-status");
   btn.onclick=()=>file.click();
+  $("clear-btn").onclick=()=>{ if(confirm("Clear all selections?")) clearAll(); };
   file.onchange=async ()=>{
     const f=file.files&&file.files[0];
     if(!f) return;
@@ -791,6 +803,12 @@ function switchTab(which){
 }
 function saveSel(){
   try{ localStorage.setItem(LS_SEL,JSON.stringify(sel)); }catch(e){}
+}
+function clearAll(){
+  sel.bean=""; sel.origin=""; sel.process=""; sel.alt=""; sel.roast="";
+  sel.style=""; sel.dose=""; sel.grinder=""; sel.pour=""; sel.tune="";
+  sel.customBean=false; sel.customOrigin=false; sel.doseManual=false;
+  applySelToCombos(); onSelChange();
 }
 
 let comboBean, comboOrigin, comboProcess, comboAlt, comboRoast, comboStyle, comboGrinder, comboPour;
