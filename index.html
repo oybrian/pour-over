@@ -723,6 +723,36 @@ function parseBagText(text){
   }
   return out;
 }
+/* Typical varietal + altitude per origin — used to infer fields the bag scan missed.
+   These are the most common profiles, not guarantees. Inferred values are
+   labeled as such in the scan status so the user can correct them. */
+const ORIGIN_PROFILE={
+  "Ethiopia — Yirgacheffe":{bean:"Ethiopian Heirloom",alt:"High (1,800m+)"},
+  "Ethiopia — Guji":{bean:"Ethiopian Heirloom",alt:"High (1,800m+)"},
+  "Ethiopia — Sidamo":{bean:"Ethiopian Heirloom",alt:"High (1,800m+)"},
+  "Kenya — Nyeri / Kirinyaga":{bean:"SL28",alt:"High (1,800m+)"},
+  "Colombia — Huila":{bean:"Caturra",alt:"High (1,800m+)"},
+  "Colombia — Nariño":{bean:"Caturra",alt:"High (1,800m+)"},
+  "Brazil — Cerrado":{bean:"Mundo Novo",alt:"Low (<1,200m)"},
+  "Guatemala — Antigua":{bean:"Bourbon",alt:"High (1,800m+)"},
+  "Costa Rica — Tarrazú":{bean:"Villa Sarchi",alt:"High (1,800m+)"},
+  "Panama — Boquete":{bean:"Gesha",alt:"High (1,800m+)"},
+  "Rwanda":{bean:"Bourbon",alt:"High (1,800m+)"},
+  "Burundi":{bean:"Bourbon",alt:"High (1,800m+)"},
+  "Sumatra":{bean:"",alt:"Medium (1,200–1,800m)"},
+  "Hawaii — Kona":{bean:"Typica",alt:"Low (<1,200m)"},
+  "Peru — Cajamarca":{bean:"Bourbon",alt:"Medium (1,200–1,800m)"},
+  "Honduras — Copán":{bean:"Catuai",alt:"Medium (1,200–1,800m)"},
+  "El Salvador — Santa Ana":{bean:"Pacas",alt:"Medium (1,200–1,800m)"},
+  "Nicaragua — Jinotega":{bean:"Caturra",alt:"Medium (1,200–1,800m)"},
+  "Mexico — Chiapas":{bean:"Typica",alt:"Medium (1,200–1,800m)"},
+  "Yemen — Mocha":{bean:"Typica",alt:"High (1,800m+)"},
+  "Indonesia — Java":{bean:"Java",alt:"Medium (1,200–1,800m)"},
+  "Papua New Guinea":{bean:"Typica",alt:"Medium (1,200–1,800m)"},
+  "Tanzania — Kilimanjaro":{bean:"Bourbon",alt:"High (1,800m+)"},
+  "Jamaica — Blue Mountain":{bean:"Typica",alt:"High (1,800m+)"},
+  "India — Malabar":{bean:"Kent",alt:"Medium (1,200–1,800m)"}
+};
 function wireScanner(){
   const btn=$("scan-btn"), file=$("scan-file"), wrap=$("scan-status-wrap"), st=$("scan-status");
   function tap(){ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){} }
@@ -741,6 +771,15 @@ function wireScanner(){
       const text=(res&&res.data&&res.data.text||"").trim();
       if(!text){ st.textContent="Could not read any text. Try a clearer photo of the label."; return; }
       const p=parseBagText(text);
+      // Infer missing bean/altitude from the detected origin's typical profile
+      const inferred=[];
+      if(p.origin&&(!p.bean||!p.alt)){
+        const prof=ORIGIN_PROFILE[p.origin];
+        if(prof){
+          if(!p.bean&&prof.bean){ p.bean=prof.bean; inferred.push("bean: "+prof.bean); }
+          if(!p.alt&&prof.alt){ p.alt=prof.alt; inferred.push("altitude: "+prof.alt); }
+        }
+      }
       const applied=[];
       if(p.bean||p.origin||p.process||p.alt||p.roast){
         sel.bean=""; sel.customBean=false;
@@ -753,8 +792,12 @@ function wireScanner(){
       if(p.alt){ sel.alt=p.alt; applied.push("altitude: "+p.alt); }
       if(p.roast){ sel.roast=p.roast; applied.push("roast: "+p.roast); }
       applySelToCombos(); onSelChange();
-      st.textContent=applied.length?("Detected — "+applied.join(", ")+". Check and correct if needed.")
-        :("No coffee details recognized. Try a closer photo of the label, or enter manually.");
+      let msg="";
+      if(applied.length) msg+="Detected — "+applied.join(", ")+". ";
+      if(inferred.length) msg+="Inferred from origin — "+inferred.join(", ")+". ";
+      if(msg) msg+="Check and correct if needed.";
+      else msg="No coffee details recognized. Try a closer photo of the label, or enter manually.";
+      st.textContent=msg;
     }catch(e){
       st.textContent="Scan failed ("+e.message+"). Enter the details manually.";
     }finally{
