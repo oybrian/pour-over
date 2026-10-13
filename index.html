@@ -132,6 +132,10 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
   </div>
   <div id="view-log" class="hidden">
     <div class="card">
+      <h2>Your stats</h2>
+      <div id="log-stats"></div>
+    </div>
+    <div class="card">
       <h2>Past brews</h2>
       <div id="log-list"></div>
     </div>
@@ -507,8 +511,28 @@ function saveBrew(){
   alert("Saved to your brew log.");
 }
 
+function renderStats(log){
+  const box=$("log-stats");
+  if(!log.length){ box.innerHTML=`<div class="empty">Log a few brews and your averages will show up here.</div>`; return; }
+  const avg=a=>a.length?(a.reduce((s,v)=>s+v,0)/a.length):0;
+  const ratings=log.map(e=>e.rating).filter(v=>v>0);
+  const dims={};
+  TASTE_DIMS.forEach(d=>{ dims[d]=avg(log.map(e=>e.dims&&e.dims[d]>0?e.dims[d]:0).filter(v=>v>0)); });
+  const dimBars=TASTE_DIMS.map(d=>dims[d]>0?
+    `<div class="dimview"><div class="dl">${esc(d)}</div><div class="dimtrack"><div class="dimfill" style="width:${dims[d]*20}%"></div></div><div class="dv">${dims[d].toFixed(1)}</div></div>`:"").join("");
+  const byProc={};
+  log.forEach(e=>{ if(e.process&&e.rating>0){ (byProc[e.process]=byProc[e.process]||[]).push(e.rating); } });
+  const procLine=Object.keys(byProc).sort().map(p=>
+    `<span style="display:inline-block;background:var(--bg);border-radius:10px;padding:4px 10px;margin:2px 4px 2px 0;font-size:13px">${esc(p)} ★${avg(byProc[p]).toFixed(1)} <span style="color:var(--sub)">(${byProc[p].length})</span></span>`
+  ).join("");
+  box.innerHTML=
+    `<div style="font-size:15px;margin-bottom:8px"><b>${log.length}</b> brews · avg <b>★${avg(ratings).toFixed(1)}</b></div>`+
+    (dimBars?`<div style="margin:8px 0">${dimBars}</div>`:"")+
+    (procLine?`<div style="margin-top:8px"><div style="font-size:13px;color:var(--sub);margin-bottom:4px">Avg rating by process</div>${procLine}</div>`:"");
+}
 function renderLog(){
   const log=getLog();
+  renderStats(log);
   const box=$("log-list");
   if(!log.length){ box.innerHTML=`<div class="empty">No brews logged yet.<br>Dial in a recipe on the Brew tab, brew it, then rate it.</div>`; return; }
   box.innerHTML=log.map(e=>{
