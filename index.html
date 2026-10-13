@@ -104,6 +104,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Altitude</label><input id="in-alt" autocomplete="off" placeholder="Low, Medium, High…"><div class="combo-list" id="list-alt"></div></div>
       <div class="field"><label>Roast</label><input id="in-roast" autocomplete="off" placeholder="Light, Medium, Dark…"><div class="combo-list" id="list-roast"></div></div>
       <div class="field"><label>Hot / Iced</label><input id="in-style" autocomplete="off" placeholder="Hot, Iced…"><div class="combo-list" id="list-style"></div></div>
+      <div class="field"><label>Grinder</label><input id="in-grinder" autocomplete="off" placeholder="Select your grinder…"><div class="combo-list" id="list-grinder"></div></div>
       <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
     </div>
     <div class="card" id="recipe-card">
@@ -184,11 +185,16 @@ const ROASTS=[
 ];
 const STYLES=["Hot","Iced"];
 const GRINDS=[
- {d:"Fine — like table salt", enc:11, c40:19},
- {d:"Medium-fine — between table salt and sea sand", enc:13, c40:22},
- {d:"Medium-fine — like sea sand", enc:15, c40:25},
- {d:"Medium — like raw sugar", enc:17, c40:28},
- {d:"Medium-coarse — like coarse sea salt", enc:19, c40:31}
+ {d:"Fine — like table salt"},
+ {d:"Medium-fine — between table salt and sea sand"},
+ {d:"Medium-fine — like sea sand"},
+ {d:"Medium — like raw sugar"},
+ {d:"Medium-coarse — like coarse sea salt"}
+];
+const GRINDERS=[
+ {n:"Baratza Encore", unit:"", vals:[11,13,15,17,19]},
+ {n:"Comandante C40", unit:"clicks", vals:[19,22,25,28,31]},
+ {n:"Fellow Ode Gen 2", unit:"", vals:[3,4,5,6,7]}
 ];
 const AROMAS=["Floral","Fruity","Citrus","Berry","Chocolate","Nutty","Caramel","Spicy","Earthy","Herbal"];
 const FLAVORS=["Sweet","Bright","Balanced","Clean","Juicy","Heavy body","Light body","Long finish","Bitter","Sour"];
@@ -207,7 +213,7 @@ const LS_SEL="bloom_sel_v1", LS_LOG="bloom_log_v1";
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 /* ================= state ================= */
-const sel={ bean:"", origin:"", process:"", alt:"", roast:"", style:"", dose:"",
+const sel={ bean:"", origin:"", process:"", alt:"", roast:"", style:"", dose:"", grinder:"",
   customBean:false, customOrigin:false, doseManual:false };
 /* select-all on focus for the dose field (iOS Safari: type=number ignores select()) */
 function selectAllOnFocus(el){
@@ -333,6 +339,11 @@ function buildRecipe(){
     grind:GRINDS[grindIdx], grindIdx, steps, totalTime, tips, iced, tune:tuneKey };
 }
 
+function grindRef(idx){
+  const gr=GRINDERS.find(x=>x.n===sel.grinder);
+  if(gr) return gr.n+": "+gr.vals[idx]+(gr.unit?" "+gr.unit:"");
+  return GRINDERS.map(x=>x.n.split(" ")[0]+" "+x.vals[idx]).join(" · ");
+}
 function renderRecipe(){
   const r=buildRecipe();
   const g=r.grind;
@@ -344,11 +355,12 @@ function renderRecipe(){
   if(sel.roast) used.push(sel.roast+" roast");
   if(sel.style) used.push(sel.style);
   if(sel.dose) used.push(sel.dose+"g");
+  if(sel.grinder) used.push(sel.grinder);
   if(sel.tune) used.push("tuned: "+TUNES[sel.tune].label);
   let html=`
     <div class="spec"><span class="k">Coffee</span><span class="v">${r.dose}g</span></div>
     <div class="spec"><span class="k">Ratio</span><span class="v">1:${r.ratio}</span></div>
-    <div class="spec"><span class="k">Grind</span><span class="v">${esc(g.d)}<br><span style="font-weight:400;color:var(--sub);font-size:13px">Encore ${g.enc} · C40 ${g.c40} clicks</span></span></div>
+    <div class="spec"><span class="k">Grind</span><span class="v">${esc(g.d)}<br><span style="font-weight:400;color:var(--sub);font-size:13px">${grindRef(r.grindIdx)}</span></span></div>
     <div class="spec"><span class="k">Water temp</span><span class="v">${r.temp}°C</span></div>`;
   if(r.iced){
     html+=`
@@ -650,7 +662,7 @@ function saveSel(){
   try{ localStorage.setItem(LS_SEL,JSON.stringify(sel)); }catch(e){}
 }
 
-let comboBean, comboOrigin, comboProcess, comboAlt, comboRoast, comboStyle;
+let comboBean, comboOrigin, comboProcess, comboAlt, comboRoast, comboStyle, comboGrinder;
 function applySelToCombos(){
   comboBean.set(sel.bean,sel.customBean);
   comboOrigin.set(sel.origin,sel.customOrigin);
@@ -658,6 +670,7 @@ function applySelToCombos(){
   comboAlt.set(sel.alt,false);
   comboRoast.set(sel.roast,false);
   comboStyle.set(sel.style,false);
+  comboGrinder.set(sel.grinder,false);
   $("in-dose").value=sel.dose||"";
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
 }
@@ -670,6 +683,7 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   comboProcess=makeCombo("in-process","list-process",PROCESSES.map(p=>({n:p.n,sub:p.d})),(v)=>{ sel.process=v; onSelChange(); });
   comboAlt=makeCombo("in-alt","list-alt",ALTS.map(a=>({n:a.n,sub:a.d})),(v)=>{ sel.alt=v; onSelChange(); });
   comboRoast=makeCombo("in-roast","list-roast",ROASTS.map(r=>({n:r.n,sub:""})),(v)=>{ sel.roast=v; onSelChange(); });
+  comboGrinder=makeCombo("in-grinder","list-grinder",GRINDERS.map(g=>({n:g.n,sub:""})),(v)=>{ sel.grinder=v; onSelChange(); });
   comboStyle=makeCombo("in-style","list-style",STYLES,(v)=>{ sel.style=v;
     if(!sel.doseManual){ sel.dose=""; $("in-dose").value=""; $("in-dose").placeholder=v==="Iced"?"20":"15"; }
     onSelChange(); });
