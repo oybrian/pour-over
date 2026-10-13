@@ -30,6 +30,8 @@ main{ padding:10px 16px 40px; max-width:640px; margin:0 auto; }
 .btn{ display:block; width:100%; border:0; border-radius:14px; padding:15px; font-size:17px; font-weight:700; cursor:pointer; }
 .btn.primary{ background:var(--acc); color:#fff; }
 .btn.ghost{ background:#e9e9ee; color:var(--ink); margin-top:8px; }
+.btn{ transition:transform .1s ease, opacity .1s ease; -webkit-tap-highlight-color:transparent; }
+.btn:active{ transform:scale(.97); opacity:.8; }
 .btn.small{ padding:10px; font-size:15px; }
 .spec{ display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:15px; }
 .spec:last-child{ border-bottom:0; }
@@ -103,8 +105,8 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
     <div class="card">
       <h2>Your coffee</h2>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="btn ghost small" id="scan-btn" style="flex:1">Scan coffee bag</button>
-        <button class="btn ghost small" id="clear-btn" style="flex:0 0 auto">Clear</button>
+        <button class="btn ghost small" id="scan-btn" style="flex:1;width:auto">Scan coffee bag</button>
+        <button class="btn ghost small" id="clear-btn" style="flex:0 0 auto;width:auto">Clear</button>
       </div>
       <input type="file" id="scan-file" accept="image/*" class="hidden">
       <div class="field hidden" id="scan-status-wrap"><label>Scan result</label><div id="scan-status" style="font-size:14px;color:var(--sub)"></div></div>
@@ -723,8 +725,9 @@ function parseBagText(text){
 }
 function wireScanner(){
   const btn=$("scan-btn"), file=$("scan-file"), wrap=$("scan-status-wrap"), st=$("scan-status");
-  btn.onclick=()=>file.click();
-  $("clear-btn").onclick=()=>{ if(confirm("Clear all selections?")) clearAll(); };
+  function tap(){ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){} }
+  btn.onclick=()=>{ tap(); file.click(); };
+  $("clear-btn").onclick=()=>{ tap(); if(confirm("Clear all selections?")) clearAll(); };
   file.onchange=async ()=>{
     const f=file.files&&file.files[0];
     if(!f) return;
