@@ -90,6 +90,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 </header>
 <div class="tabs">
   <button class="tab on" id="tab-brew">Brew</button>
+  <button class="tab" id="tab-dial">Dial In</button>
   <button class="tab" id="tab-log">Brew log</button>
 </div>
 <main>
@@ -128,6 +129,20 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Roaster</label><input id="log-roaster" type="text" autocomplete="off" placeholder="e.g. Onyx, Sey, Prodigal…"></div>
       <div class="field"><label>Notes</label><textarea id="log-notes" placeholder="What stood out? What would you change next time?"></textarea></div>
       <button class="btn primary" id="save-log">Save to brew log</button>
+    </div>
+  </div>
+  <div id="view-dial" class="hidden">
+    <div class="card">
+      <h2>Your optimal recipe</h2>
+      <div id="dial-recipe"></div>
+    </div>
+    <div class="card">
+      <h2>What your palate likes</h2>
+      <div id="dial-insights"></div>
+    </div>
+    <div class="card">
+      <h2>Top brews</h2>
+      <div id="dial-top"></div>
     </div>
   </div>
   <div id="view-log" class="hidden">
@@ -495,7 +510,9 @@ function saveBrew(){
     bean:sel.bean, origin:sel.origin, process:sel.process, alt:sel.alt,
     roast:sel.roast, style:sel.style,
     recipe:lastRecipe?{dose:lastRecipe.dose,water:lastRecipe.water,ice:lastRecipe.ice,
-      temp:lastRecipe.temp,grind:lastRecipe.grind.d,ratio:lastRecipe.ratio}:null,
+      temp:lastRecipe.temp,grind:lastRecipe.grind.d,grindIdx:lastRecipe.grindIdx,
+      ratio:lastRecipe.ratio,pour:lastRecipe.pour}:null,
+    grinder:sel.grinder,
     rating, aroma:[...pickedAroma], flavor:[...pickedFlavor],
     dims:Object.assign({},dimVals),
     roaster:$("log-roaster").value.trim(),
@@ -511,6 +528,58 @@ function saveBrew(){
   alert("Saved to your brew log.");
 }
 
+function renderDialIn(){
+  const log=getLog().filter(e=>e.rating>0);
+  const rBox=$("dial-recipe"), iBox=$("dial-insights"), tBox=$("dial-top");
+  if(log.length<2){
+    rBox.innerHTML=`<div class="empty">Log at least 2 rated brews and I'll build your optimal recipe here.</div>`;
+    iBox.innerHTML=""; tBox.innerHTML="";
+    return;
+  }
+  const good=log.filter(e=>e.rating>=4);
+  const set=good.length?good:log;
+  const wavg=fn=>{ let s=0,w=0; set.forEach(e=>{ const v=fn(e); if(v!=null&&!isNaN(v)){ s+=v*e.rating; w+=e.rating; } }); return w?s/w:null; };
+  const mode=fn=>{ const c={}; set.forEach(e=>{ const v=fn(e); if(v) c[v]=(c[v]||0)+e.rating; });
+    let best=null,bv=0; for(const k in c){ if(c[k]>bv){ bv=c[k]; best=k; } } return best; };
+  const optTemp=wavg(e=>e.recipe&&e.recipe.temp);
+  const optGrind=wavg(e=>e.recipe&&e.recipe.grindIdx);
+  const optDose=wavg(e=>e.recipe&&e.recipe.dose);
+  const optProcess=mode(e=>e.process), optRoast=mode(e=>e.roast), optPour=mode(e=>e.recipe&&e.recipe.pour);
+  const optStyle=mode(e=>e.style);
+  const grinder=sel.grinder||mode(e=>e.grinder);
+  const gr=grinder&&GRINDERS.find(g=>g.n===grinder);
+  const gi=optGrind!=null?Math.round(optGrind):2;
+  const grindTxt=gr?`${gr.n}: ${gr.vals[Math.max(0,Math.min(4,gi))]}${gr.unit?" "+gr.unit:""}`:GRINDS[Math.max(0,Math.min(4,gi))].d;
+  rBox.innerHTML=
+    `<div style="font-size:13px;color:var(--sub);margin-bottom:10px">Based on your ${set.length} highest-rated brew${set.length>1?"s":""}</div>`+
+    `<div class="spec"><span class="k">Process</span><span class="v">${esc(optProcess||"—")}</span></div>`+
+    `<div class="spec"><span class="k">Roast</span><span class="v">${esc(optRoast||"—")}</span></div>`+
+    `<div class="spec"><span class="k">Grind</span><span class="v">${esc(grindTxt)}</span></div>`+
+    `<div class="spec"><span class="k">Water temp</span><span class="v">${optTemp!=null?Math.round(optTemp)+"°C":"—"}</span></div>`+
+    `<div class="spec"><span class="k">Dose</span><span class="v">${optDose!=null?optDose.toFixed(0)+"g":"—"}</span></div>`+
+    `<div class="spec"><span class="k">Pour style</span><span class="v">${esc(optPour||"2 pours")}</span></div>`+
+    (optStyle?`<div class="spec"><span class="k">Style</span><span class="v">${esc(optStyle)}</span></div>`:"");
+  const ins=[];
+  const avgR=p=>{ const f=log.filter(e=>e.process===p&&e.rating>0); return f.length?f.reduce((s,e)=>s+e.rating,0)/f.length:null; };
+  const procs=["Natural","Washed","Honey"].map(p=>({p,r:avgR(p),n:log.filter(e=>e.process===p).length})).filter(x=>x.r!=null&&x.n>=1);
+  if(procs.length>=2){
+    procs.sort((a,b)=>b.r-a.r);
+    ins.push(`Your <b>${esc(procs[0].p.toLowerCase())}</b> brews average ★${procs[0].r.toFixed(1)} vs ${esc(procs[procs.length-1].p.toLowerCase())} at ★${procs[procs.length-1].r.toFixed(1)} — your palate leans ${esc(procs[0].p.toLowerCase())}.`);
+  }
+  const hiT=log.filter(e=>e.recipe&&e.recipe.temp>=93&&e.rating>=4).length;
+  const loT=log.filter(e=>e.recipe&&e.recipe.temp<93&&e.rating>=4).length;
+  if(hiT+loT>=3) ins.push(hiT>=loT?`Your 4★+ brews skew <b>hotter</b> (${hiT} vs ${loT}) — you seem to like higher extraction.`:`Your 4★+ brews skew <b>cooler</b> (${loT} vs ${hiT}) — you seem to prefer gentler extraction.`);
+  const dims={};
+  TASTE_DIMS.forEach(d=>{ const vs=log.filter(e=>e.dims&&e.dims[d]>=4); if(vs.length) dims[d]=vs.length; });
+  const topDim=Object.keys(dims).sort((a,b)=>dims[b]-dims[a])[0];
+  if(topDim) ins.push(`<b>${esc(topDim)}</b> shows up most in your 4–5★ brews (${dims[topDim]}×) — that's your signature.`);
+  iBox.innerHTML=ins.length?`<ul class="tips">${ins.map(t=>`<li>${t}</li>`).join("")}</ul>`:`<div class="empty">Log a few more brews for palate insights.</div>`;
+  const top=[...log].sort((a,b)=>b.rating-a.rating||new Date(b.date)-new Date(a.date)).slice(0,3);
+  tBox.innerHTML=top.map(e=>{
+    const line=[e.bean,e.origin,e.process,e.roast].filter(Boolean).join(" · ");
+    return `<div class="log-item"><div class="sel"><span class="r">${"★".repeat(e.rating)+"☆".repeat(5-e.rating)}</span> ${esc(line)}</div></div>`;
+  }).join("");
+}
 function renderStats(log){
   const box=$("log-stats");
   if(!log.length){ box.innerHTML=`<div class="empty">Log a few brews and your averages will show up here.</div>`; return; }
@@ -712,10 +781,13 @@ function buildTunes(){
 /* ================= tabs / persist / init ================= */
 function switchTab(which){
   $("tab-brew").classList.toggle("on",which==="brew");
+  $("tab-dial").classList.toggle("on",which==="dial");
   $("tab-log").classList.toggle("on",which==="log");
   $("view-brew").classList.toggle("hidden",which!=="brew");
+  $("view-dial").classList.toggle("hidden",which!=="dial");
   $("view-log").classList.toggle("hidden",which!=="log");
   if(which==="log") renderLog();
+  if(which==="dial") renderDialIn();
 }
 function saveSel(){
   try{ localStorage.setItem(LS_SEL,JSON.stringify(sel)); }catch(e){}
@@ -767,6 +839,7 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   });
   $("save-log").onclick=saveBrew;
   $("tab-brew").onclick=()=>switchTab("brew");
+  $("tab-dial").onclick=()=>switchTab("dial");
   $("tab-log").onclick=()=>switchTab("log");
 
   lastRecipe=renderRecipe();
