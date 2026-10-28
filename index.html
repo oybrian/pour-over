@@ -256,6 +256,55 @@ const ROASTS=[
  {n:"Medium", grind:0, temp:92, ratio:16.7, tip:""},
  {n:"Dark", grind:1, temp:88, ratio:17.5, tip:"Dark roasts extract fast — go coarser, cooler (88°C), and a touch leaner on coffee to avoid bitterness."}
 ];
+/* Farm-specific V60 profiles from published roaster recipes (Oct 2026).
+   Steps use cumulative fractions of total water. Sources named in each note. */
+const ARCHERS_STEPS=[
+ {t:"0:00",f:0.18,label:"Bloom",note:"wet all grounds and swirl gently."},
+ {t:"1:10",f:0.49,label:"Second pour",note:"slow spiral from the centre outward."},
+ {t:"2:00",f:0.8,label:"Third pour",note:"keep it gentle."},
+ {t:"2:30",f:1,label:"Final pour",note:"pour in the centre only."}
+];
+const FARM_RECIPES={
+ "Panama — Esmeralda, Boquete (Nido)":{
+  "Washed":{temp:92,ratio:16,grind:1,total:"\u22481:30",tag:"Esmeralda washed (BlendIn)",
+    steps:[{t:"0:00",f:0.19,label:"Bloom + first pour",note:"wet all grounds, swirl gently."},
+           {t:"0:30",f:0.625,label:"Second pour",note:"slow spiral."},
+           {t:"1:00",f:1,label:"Final pour",note:"fast finish — drawdown ends around 1:30."}],
+    note:"Farm profile — BlendIn's recipe for Esmeralda washed (EA5, El Velo): 15g/240g, 92\u00B0C, 100ppm water, Comandante 18 clicks, rested 21 days. A fast, hot, fine recipe — the opposite of the slow natural below."},
+  "Natural":{temp:94,ratio:16.7,grind:3,total:"\u22483:40",tag:"Esmeralda natural (BlendIn)",
+    steps:[{t:"0:00",f:0.2,label:"Pour 1 (bloom)",note:"wet all grounds, swirl gently."},
+           {t:"0:30",f:0.4,label:"Pour 2",note:"slow spiral."},
+           {t:"1:00",f:0.6,label:"Pour 3",note:"keep the level steady."},
+           {t:"1:30",f:0.8,label:"Pour 4",note:"gentle."},
+           {t:"2:00",f:1,label:"Pour 5",note:"then let it draw down fully — about 3:40 total."}],
+    note:"Farm profile — BlendIn's recipe for Esmeralda natural (Nido 1NC): 15g/250g, 94\u00B0C, Comandante 25 clicks, five equal pours every 30 seconds, rested 14 days. Hotter AND slower than their washed — the pours, not the temperature, control extraction here."}
+ },
+ "Panama — Elida, Boquete (Torre · Vuelta)":{
+  "Washed":{temp:96,ratio:15,grind:1,total:"\u22481:30",tag:"Elida washed DRD (BlendIn)",
+    steps:[{t:"0:00",f:0.22,label:"Bloom",note:"wet all grounds, swirl gently."},
+           {t:"0:30",f:1,label:"Main pour",note:"one continuous slow pour to full weight, then draw down — done around 1:30."}],
+    note:"Farm profile — BlendIn's recipe for Elida Washed DRD (Vuelta plot): 15g/225g (1:15), 96\u00B0C, 100ppm water, Comandante 20 clicks, rested 14 days. No published recipe exists for a washed-DRD Torre lot specifically; this is the closest DRD washed profile."},
+  "Natural":{temp:92,ratio:15,grind:3,total:"2:00\u20133:20",tag:"Elida natural (Archers)",
+    steps:ARCHERS_STEPS,
+    note:"Farm profile — Archers' recipe for Elida Vuelta Geisha Natural (Lot 0325): 15g, 90\u201393\u00B0C, 700\u2013800\u00B5m grind, 1:15. Vuelta naturals are anaerobically fermented for 3 days in sealed bags, then dark-room dried (DRD)."}
+ },
+ "Panama — El Pergamino, Volcán (Holy Bean)":{
+  "Washed":{temp:92,ratio:15,grind:2,total:"2:00\u20133:20",tag:"Pergamino washed (Archers)",
+    steps:ARCHERS_STEPS,
+    note:"Farm profile — Archers' recipe for Pergamino Geisha Washed Lot 31325: 15g, 91\u201393\u00B0C, 650\u2013750\u00B5m grind, 1:15. No recipe is published under the Holy Bean name itself; this is the farm's washed Geisha lot recipe."},
+  "Natural":{temp:92,ratio:15,grind:2,total:"2:00\u20133:20",tag:"Pergamino natural (Archers)",
+    steps:ARCHERS_STEPS,
+    note:"Farm profile — Archers publishes a word-for-word identical recipe for Pergamino's Geisha Natural Lot 2425 (15g, 91\u201393\u00B0C, 650\u2013750\u00B5m, 1:15). If the cup tastes heavy, the lever Archers leaves you is grind — one step coarser."}
+ },
+ "Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)":{
+  "Washed":{temp:95,ratio:15,grind:1,total:"2:00\u20133:20",tag:"Longboard washed (Archers)",
+    steps:ARCHERS_STEPS,
+    note:"Farm profile — Archers' recipe for Longboard Misty Mountain Geisha Washed 16B (cold-ferment, DRD): 15g, 93\u201396\u00B0C — the hottest of Archers' Panama Geishas — with their finest grind (600\u2013700\u00B5m), 1:15."},
+  "Natural":{temp:92,ratio:15,grind:2,total:"2:00\u20133:20",tag:"Longboard natural (Archers)",
+    steps:ARCHERS_STEPS,
+    note:"Farm profile — Archers' recipe for Longboard Windy Ridge RN 11 (natural, cold-ferment, DRD): 15g, 91\u201393\u00B0C, 650\u2013750\u00B5m, 1:15. No washed Windy Ridge V60 recipe is published; Windy Ridge also placed in the 2024 World Brewers Cup final (3rd, in a blend, double immersion)."}
+ }
+};
 const STYLES=["Hot","Iced"];
 const POUR_STYLES=[
  {n:"2 pours", note:"Hoffmann style — bloom + 2 pours"},
@@ -359,13 +408,17 @@ function buildRecipe(){
 
   const doseNum=parseFloat(sel.dose);
   const dose=(doseNum>0&&doseNum<=60)?Math.round(doseNum*10)/10:(iced?20:15);
+  const farmMap=FARM_RECIPES[sel.origin];
+  const fp=(!iced&&farmMap&&sel.process&&farmMap[sel.process])?farmMap[sel.process]:null;
   let ratio=iced?16:roast.ratio;
   if(!iced&&proc&&proc.n==="Honey") ratio=16;
+  if(fp) ratio=fp.ratio;
 
   const water=Math.round(dose*ratio);
   let grindIdx=2+roast.grind+(proc?proc.grind:0)+(alt?alt.grind:0)+(iced?-1:0);
   if(sel.origin&&sel.origin.indexOf("Guji")>=0&&proc&&proc.n==="Natural") grindIdx+=1;
   grindIdx=clamp(grindIdx,0,4);
+  if(fp) grindIdx=fp.grind;
 
   let temp=iced?94:roast.temp;
   if(proc) temp+=proc.temp;
@@ -373,6 +426,7 @@ function buildRecipe(){
   if(iced&&sel.roast==="Light") temp+=1;
   if(iced&&sel.roast==="Dark") temp-=2;
   temp=clamp(Math.round(temp),85,96);
+  if(fp) temp=fp.temp;
 
   const tuneKey=sel.tune&&TUNES[sel.tune]?sel.tune:null;
   if(tuneKey){
@@ -383,20 +437,26 @@ function buildRecipe(){
   const tempOv=parseFloat(sel.temp);
   if(tempOv>=80&&tempOv<=100) temp=Math.round(tempOv);
   const pour=sel.pour||"2 pours";
-  if(pour==="4:6 (5 pours)") grindIdx=Math.min(4,grindIdx+1);
+  if(pour==="4:6 (5 pours)"&&!fp) grindIdx=Math.min(4,grindIdx+1);
 
   const bloom=Math.round(dose*3);
   const bloomTime=45;
   const ice=iced?Math.round(dose*ratio*0.37):0;
   const hotWater=iced?water-ice:water;
-  const totalTime=iced?"2:30–3:00":pour==="4:6 (5 pours)"?"3:15–3:45":pour==="3 pours"?"3:00–3:30":"2:45–3:15";
+  let totalTime=iced?"2:30–3:00":pour==="4:6 (5 pours)"?"3:15–3:45":pour==="3 pours"?"3:00–3:30":"2:45–3:15";
+  if(fp) totalTime=fp.total;
 
   // pour schedule
   const steps=[];
   const wTarget=iced?hotWater:water;
   const hw=iced?" hot water":"";
   const finishStep=iced?`Drawdown finishes. Swirl the carafe to melt the remaining ice and serve.`:`Drawdown finishes. Remove the dripper, swirl the carafe, and serve.`;
-  if(pour==="4:6 (5 pours)"){
+  if(fp){
+    fp.steps.forEach(st=>{
+      steps.push({t:st.t, d:`<b>${st.label}:</b> pour to <b>${Math.round(wTarget*st.f)}g</b> total at ${temp}°C. ${st.note}`});
+    });
+    steps.push({t:totalTime, d:finishStep});
+  }else if(pour==="4:6 (5 pours)"){
     const fr=[1/6,7/30,1/5,1/5,1/5], ts=["0:00","0:45","1:30","2:15","3:00"];
     const lb=["First pour — sweetness","Second pour — sweetness","Third pour — strength","Fourth pour — strength","Fifth pour — strength"];
     let cum=0;
@@ -429,6 +489,7 @@ function buildRecipe(){
 
   // tips
   const tips=[];
+  if(fp) tips.push(fp.note);
   if(roast.tip) tips.push(roast.tip);
   if(proc&&proc.tip) tips.push(proc.tip);
   if(pour==="4:6 (5 pours)") tips.push("4:6 method: first 2 pours (40%) set sweetness — pour them slower for a sweeter cup; last 3 pours (60%) set strength.");
@@ -439,7 +500,7 @@ function buildRecipe(){
   if(sel.customBean||sel.customOrigin) tips.push("This coffee is not in the built-in list, so the recipe uses the process, roast, and altitude settings as the baseline. Use the web search below to find roast-specific tips.");
 
   return { dose, ratio:ratio.toFixed(1), water, hotWater, ice, temp, baseTemp, bloom, bloomTime,
-    grind:GRINDS[grindIdx], grindIdx, steps, totalTime, tips, iced, tune:tuneKey, pour };
+    grind:GRINDS[grindIdx], grindIdx, steps, totalTime, tips, iced, tune:tuneKey, pour:fp?fp.tag:pour };
 }
 
 function grindRef(idx){
