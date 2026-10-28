@@ -155,9 +155,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
     <div class="card" id="recipe-card">
       <div id="recipe-body"></div>
       <a class="search-link hidden" id="web-search" href="#" target="_blank" rel="noopener">Search the web for this coffee →</a>
-    </div>
-    <div class="card" id="tune-card">
-      <h2>Tune your cup</h2>
+      <h2 style="margin-top:18px">Tune your cup</h2>
       <div class="chips" id="tune-btns"></div>
     </div>
     <div class="card" id="logform-card">
@@ -166,10 +164,6 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Aroma notes</label><div class="chips" id="chips-aroma"></div></div>
       <div class="field"><label>Flavor notes</label><div class="chips" id="chips-flavor"></div></div>
       <div class="field"><label>Taste profile</label><div id="dims"></div></div>
-      <div style="display:flex;gap:10px">
-        <div class="field" style="flex:1"><label>Actual water temp (°C)</label><input id="log-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></div>
-        <div class="field" style="flex:1"><label>Actual total time</label><input id="log-time" type="text" autocomplete="off" placeholder="e.g. 3:05"></div>
-      </div>
       <div id="log-actual-note" style="font-size:13px;color:var(--sub);margin:-2px 0 10px"></div>
       <div class="field"><label>Photo — bag / lot label (optional)</label>
         <button class="btn ghost small" id="log-photo-btn" type="button" style="width:auto">Add photo</button>
@@ -719,9 +713,8 @@ function parseBrewTime(v){
 function saveBrew(){
   if(!rating){ alert("Tap the stars to rate this brew first."); return; }
   const log=getLog();
-  let aTime=parseBrewTime($("log-time")?$("log-time").value:"");
-  if(aTime==null&&typeof pendingActualSec!=="undefined"&&pendingActualSec!=null) aTime=pendingActualSec;
-  const aTempRaw=parseFloat($("log-temp")?$("log-temp").value:"");
+  const aTime=(typeof pendingActualSec!=="undefined")?pendingActualSec:null;
+  const aTempRaw=(typeof pendingActualTemp!=="undefined"&&pendingActualTemp!=null)?pendingActualTemp:NaN;
   const aTemp=(aTempRaw>=60&&aTempRaw<=100)?aTempRaw:null;
   let actual=null;
   if(aTime!=null||aTemp!=null){
@@ -764,10 +757,9 @@ function saveBrew(){
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   $("log-notes").value="";
   $("log-roaster").value="";
-  if($("log-temp")) $("log-temp").value="";
-  if($("log-time")) $("log-time").value="";
   if($("log-actual-note")) $("log-actual-note").textContent="";
   if(typeof pendingActualSec!=="undefined") pendingActualSec=null;
+  if(typeof pendingActualTemp!=="undefined") pendingActualTemp=null;
   if(typeof pendingPhoto!=="undefined"&&pendingPhoto){
     pendingPhoto=null;
     const pf=$("log-photo-file"); if(pf) pf.value="";
@@ -1199,15 +1191,14 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
 })();
 /* ================= brew timer ================= */
 let btSteps=[], btIdx=-1, btTimer=null, btStartT=0, btBase=0, btPaused=false, btDone=false;
-let pendingActualSec=null;
+let pendingActualSec=null, pendingActualTemp=null;
 function btVib(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
 function captureActual(sec){
   if(!(sec>=20)) return;
   pendingActualSec=Math.round(sec);
-  const lt=$("log-time"); if(lt) lt.value=btFmt(pendingActualSec);
-  const lp=$("log-temp"); if(lp&&!lp.value&&typeof lastRecipe!=="undefined"&&lastRecipe) lp.value=lastRecipe.temp;
+  if(pendingActualTemp==null&&typeof lastRecipe!=="undefined"&&lastRecipe) pendingActualTemp=lastRecipe.temp;
   const n=$("log-actual-note");
-  if(n) n.textContent="\u23F1 From the timer: total "+btFmt(pendingActualSec)+" — it will be saved with your next log entry. Edit the fields above if needed.";
+  if(n) n.textContent="\u23F1 From the timer: total "+btFmt(pendingActualSec)+" — it will be saved with your next log entry.";
 }
 function btFinish(sec){
   btDone=true;
