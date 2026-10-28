@@ -79,11 +79,6 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 .dimview .dv{ flex:0 0 14px; font-size:13px; font-weight:600; text-align:right; }
 .search-link{ display:block; text-align:center; margin-top:10px; font-size:14px; color:var(--acc); }
 .hidden{ display:none !important; }
-.more-opts{ margin-top:4px; }
-.more-opts summary{ font-size:14px; color:var(--acc); font-weight:600; cursor:pointer; padding:8px 0; list-style:none; }
-.more-opts summary::-webkit-details-marker{ display:none; }
-.more-opts summary::before{ content:"+ "; }
-.more-opts[open] summary::before{ content:"− "; }
 /* brew timer overlay */
 #brew-timer{ position:fixed; inset:0; z-index:100; background:var(--bg); display:flex; flex-direction:column; padding:calc(env(safe-area-inset-top) + 16px) 20px calc(env(safe-area-inset-bottom) + 20px); }
 #brew-timer.bt-hidden{ display:none; }
@@ -144,17 +139,15 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
         <div class="field" style="flex:1"><label>Plot — optional</label><input id="in-plot" type="text" autocomplete="off" placeholder="e.g. Nido, Torre, Vuelta"></div>
         <div class="field" style="flex:1"><label>Lot — optional</label><input id="in-lot" type="text" autocomplete="off" placeholder="e.g. 31325, GW DRD"></div>
       </div>
+      <div class="field"><label>Altitude — optional</label><input id="in-alt" type="text" autocomplete="off" placeholder="Altitude range — e.g. 1,800–2,000m"></div>
       <div class="field"><label>Process</label><div class="seg" id="seg-process"></div></div>
+      <div class="field"><label>Roastery</label><input id="log-roaster" type="text" autocomplete="off" placeholder="Bag scan fills this automatically, or type it manually"></div>
       <div class="field"><label>Roast</label><div class="seg" id="seg-roast"></div></div>
       <div class="field"><label>Hot / Iced</label><div class="seg" id="seg-style"></div></div>
       <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
       <div class="field"><label>Water temp (°C) — optional</label><input id="in-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="Recipe default"></div>
-      <details class="more-opts">
-        <summary>More options</summary>
-        <div class="field"><label>Grinder</label><input id="in-grinder" autocomplete="off" placeholder="Select your grinder…"><div class="combo-list" id="list-grinder"></div></div>
-        <div class="field"><label>Pour style</label><input id="in-pour" autocomplete="off" placeholder="2 pours"><div class="combo-list" id="list-pour"></div></div>
-        <div class="field"><label>Altitude</label><input id="in-alt" autocomplete="off" placeholder="Low, Medium, High…"><div class="combo-list" id="list-alt"></div></div>
-      </details>
+      <div class="field"><label>Grinder</label><input id="in-grinder" autocomplete="off" placeholder="Select your grinder…"><div class="combo-list" id="list-grinder"></div></div>
+      <div class="field"><label>Pour style</label><input id="in-pour" autocomplete="off" placeholder="2 pours"><div class="combo-list" id="list-pour"></div></div>
     </div>
     <div class="card" id="recipe-card">
       <div id="recipe-body"></div>
@@ -170,7 +163,6 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Aroma notes</label><div class="chips" id="chips-aroma"></div></div>
       <div class="field"><label>Flavor notes</label><div class="chips" id="chips-flavor"></div></div>
       <div class="field"><label>Taste profile</label><div id="dims"></div></div>
-      <div class="field"><label>Roastery</label><input id="log-roaster" type="text" autocomplete="off" placeholder="Bag scan fills this automatically, or type it manually"></div>
       <div style="display:flex;gap:10px">
         <div class="field" style="flex:1"><label>Actual water temp (°C)</label><input id="log-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></div>
         <div class="field" style="flex:1"><label>Actual total time</label><input id="log-time" type="text" autocomplete="off" placeholder="e.g. 3:05"></div>
@@ -254,6 +246,20 @@ const ALTS=[
  {n:"High (1,800m+)", d:"Dense, hard beans", grind:-1, temp:1, tip:"High-altitude beans are dense and extract more slowly — grind a step finer and use slightly hotter water."},
  {n:"Unknown", d:"", grind:0, temp:0, tip:""}
 ];
+/* Altitude is typed as a range (e.g. "1,800–2,000m"); the band is read from the numbers.
+   Legacy preset names ("High (1,800m+)" etc.) still resolve. */
+function altBand(){
+  const s=(sel.alt||"").toLowerCase(); if(!s) return null;
+  if(s.indexOf("high (")>=0) return ALTS[2];
+  if(s.indexOf("medium (")>=0) return ALTS[1];
+  if(s.indexOf("low (")>=0||s.indexOf("under")>=0) return ALTS[0];
+  const nums=(s.match(/\d[\d,]{2,}/g)||[]).map(x=>parseInt(x.replace(/,/g,""),10)).filter(n=>n>=300&&n<=3000);
+  if(nums.length){ const mid=(Math.min.apply(null,nums)+Math.max.apply(null,nums))/2; return mid>=1800?ALTS[2]:mid>=1200?ALTS[1]:ALTS[0]; }
+  if(s.indexOf("high")>=0) return ALTS[2];
+  if(s.indexOf("medium")>=0) return ALTS[1];
+  if(s.indexOf("low")>=0) return ALTS[0];
+  return null;
+}
 const ROASTS=[
  {n:"Light", grind:-1, temp:94, ratio:16, tip:"Light roasts are dense and less soluble — finer grind, hotter water (94°C), and a slightly tighter ratio open them up."},
  {n:"Medium", grind:0, temp:92, ratio:16.7, tip:""},
@@ -443,7 +449,7 @@ function buildRecipe(){
   const iced=sel.style==="Iced";
   const roast=findByName(ROASTS,sel.roast)||ROASTS[1];
   const proc=findByName(PROCESSES,sel.process);
-  const alt=findByName(ALTS,sel.alt);
+  const alt=altBand();
   const origin=ORIGINS.find(o=>o.n===sel.origin);
 
   const doseNum=parseFloat(sel.dose);
@@ -925,14 +931,9 @@ function parseBagText(text){
   if(/\blight( roast)?\b/.test(t)) out.roast="Light";
   else if(/\bmedium( roast)?\b/.test(t)) out.roast="Medium";
   else if(/\bdark( roast)?\b/.test(t)) out.roast="Dark";
-  // altitude: e.g. 1800m, 1,800m, 2100 masl
-  const am=t.match(/(\d[\d,]{2,})\s*m(\.a\.s\.l\.|asl)?/);
-  if(am){
-    const m=parseInt(am[1].replace(/,/g,""),10);
-    if(m>=1800) out.alt="High (1,800m+)";
-    else if(m>=1200) out.alt="Medium (1,200–1,800m)";
-    else out.alt="Low (<1,200m)";
-  }
+  // altitude: keep the range as printed, e.g. "1,900–2,210m" or "2,200m"
+  const am=t.match(/(\d[\d,]{2,})\s*(?:-|–|to)\s*(\d[\d,]{2,})\s*m/)||t.match(/(\d[\d,]{2,})\s*m(\.a\.s\.l\.|asl)?/);
+  if(am){ out.alt=am[2]?am[1]+"–"+am[2]+"m":am[1]+"m"; }
   // origin: match known origin keywords
   const ORIGIN_KEYS=[
     ["yirgacheffe","Ethiopia — Yirgacheffe"],["guji","Ethiopia — Guji"],
@@ -983,32 +984,32 @@ function parseBagText(text){
    These are the most common profiles, not guarantees. Inferred values are
    labeled as such in the scan status so the user can correct them. */
 const ORIGIN_PROFILE={
-  "Ethiopia — Yirgacheffe":{bean:"Ethiopian Heirloom",alt:"High (1,800m+)"},
-  "Ethiopia — Guji":{bean:"Ethiopian Heirloom",alt:"High (1,800m+)"},
-  "Ethiopia — Sidamo":{bean:"Ethiopian Heirloom",alt:"High (1,800m+)"},
-  "Kenya — Nyeri / Kirinyaga":{bean:"SL28",alt:"High (1,800m+)"},
-  "Colombia — Huila":{bean:"Caturra",alt:"High (1,800m+)"},
-  "Colombia — Nariño":{bean:"Caturra",alt:"High (1,800m+)"},
-  "Brazil — Cerrado":{bean:"Mundo Novo",alt:"Low (<1,200m)"},
-  "Guatemala — Antigua":{bean:"Bourbon",alt:"High (1,800m+)"},
-  "Costa Rica — Tarrazú":{bean:"Villa Sarchi",alt:"High (1,800m+)"},
-  "Panama — Boquete":{bean:"Gesha",alt:"High (1,800m+)"},
-  "Panama — Volcán":{bean:"Gesha",alt:"High (1,800m+)"},
-  "Rwanda":{bean:"Bourbon",alt:"High (1,800m+)"},
-  "Burundi":{bean:"Bourbon",alt:"High (1,800m+)"},
-  "Sumatra":{bean:"",alt:"Medium (1,200–1,800m)"},
-  "Hawaii — Kona":{bean:"Typica",alt:"Low (<1,200m)"},
-  "Peru — Cajamarca":{bean:"Bourbon",alt:"Medium (1,200–1,800m)"},
-  "Honduras — Copán":{bean:"Catuai",alt:"Medium (1,200–1,800m)"},
-  "El Salvador — Santa Ana":{bean:"Pacas",alt:"Medium (1,200–1,800m)"},
-  "Nicaragua — Jinotega":{bean:"Caturra",alt:"Medium (1,200–1,800m)"},
-  "Mexico — Chiapas":{bean:"Typica",alt:"Medium (1,200–1,800m)"},
-  "Yemen — Mocha":{bean:"Typica",alt:"High (1,800m+)"},
-  "Indonesia — Java":{bean:"Java",alt:"Medium (1,200–1,800m)"},
-  "Papua New Guinea":{bean:"Typica",alt:"Medium (1,200–1,800m)"},
-  "Tanzania — Kilimanjaro":{bean:"Bourbon",alt:"High (1,800m+)"},
-  "Jamaica — Blue Mountain":{bean:"Typica",alt:"High (1,800m+)"},
-  "India — Malabar":{bean:"Kent",alt:"Medium (1,200–1,800m)"}
+  "Ethiopia — Yirgacheffe":{bean:"Ethiopian Heirloom",alt:"1,800m+"},
+  "Ethiopia — Guji":{bean:"Ethiopian Heirloom",alt:"1,800m+"},
+  "Ethiopia — Sidamo":{bean:"Ethiopian Heirloom",alt:"1,800m+"},
+  "Kenya — Nyeri / Kirinyaga":{bean:"SL28",alt:"1,800m+"},
+  "Colombia — Huila":{bean:"Caturra",alt:"1,800m+"},
+  "Colombia — Nariño":{bean:"Caturra",alt:"1,800m+"},
+  "Brazil — Cerrado":{bean:"Mundo Novo",alt:"Under 1,200m"},
+  "Guatemala — Antigua":{bean:"Bourbon",alt:"1,800m+"},
+  "Costa Rica — Tarrazú":{bean:"Villa Sarchi",alt:"1,800m+"},
+  "Panama — Boquete":{bean:"Gesha",alt:"1,800m+"},
+  "Panama — Volcán":{bean:"Gesha",alt:"1,800m+"},
+  "Rwanda":{bean:"Bourbon",alt:"1,800m+"},
+  "Burundi":{bean:"Bourbon",alt:"1,800m+"},
+  "Sumatra":{bean:"",alt:"1,200–1,800m"},
+  "Hawaii — Kona":{bean:"Typica",alt:"Under 1,200m"},
+  "Peru — Cajamarca":{bean:"Bourbon",alt:"1,200–1,800m"},
+  "Honduras — Copán":{bean:"Catuai",alt:"1,200–1,800m"},
+  "El Salvador — Santa Ana":{bean:"Pacas",alt:"1,200–1,800m"},
+  "Nicaragua — Jinotega":{bean:"Caturra",alt:"1,200–1,800m"},
+  "Mexico — Chiapas":{bean:"Typica",alt:"1,200–1,800m"},
+  "Yemen — Mocha":{bean:"Typica",alt:"1,800m+"},
+  "Indonesia — Java":{bean:"Java",alt:"1,200–1,800m"},
+  "Papua New Guinea":{bean:"Typica",alt:"1,200–1,800m"},
+  "Tanzania — Kilimanjaro":{bean:"Bourbon",alt:"1,800m+"},
+  "Jamaica — Blue Mountain":{bean:"Typica",alt:"1,800m+"},
+  "India — Malabar":{bean:"Kent",alt:"1,200–1,800m"}
 };
 function wireScanner(){
   const btn=$("scan-btn"), file=$("scan-file"), wrap=$("scan-status-wrap"), st=$("scan-status");
@@ -1108,11 +1109,11 @@ function clearAll(){
   applySelToCombos(); onSelChange();
 }
 
-let comboBean, comboOrigin, comboAlt, comboGrinder, comboPour;
+let comboBean, comboOrigin, comboGrinder, comboPour;
 function applySelToCombos(){
   comboBean.set(sel.bean,sel.customBean);
   comboOrigin.set(sel.origin,sel.customOrigin);
-  comboAlt.set(sel.alt,false);
+  const _a=$("in-alt"); if(_a) _a.value=sel.alt||"";
   comboGrinder.set(sel.grinder,false);
   comboPour.set(sel.pour,false);
   refreshSegs();
@@ -1137,11 +1138,11 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   if(OLD_FARM_ORIGINS[sel.origin]){ const m=OLD_FARM_ORIGINS[sel.origin];
     sel.origin=m.origin; sel.customOrigin=false;
     if(!sel.farm) sel.farm=m.farm; if(!sel.plot) sel.plot=m.plot; }
-  comboBean=makeCombo("in-bean","list-bean",BEANS,(v,c)=>{ sel.bean=v; sel.customBean=c; onSelChange(); });
-  comboOrigin=makeCombo("in-origin","list-origin",ORIGINS.map(o=>({n:o.n,sub:o.note})),(v,c)=>{ sel.origin=v; sel.customOrigin=c; onSelChange(); });
-  comboAlt=makeCombo("in-alt","list-alt",ALTS.map(a=>({n:a.n,sub:a.d})),(v)=>{ sel.alt=v; onSelChange(); });
-  comboGrinder=makeCombo("in-grinder","list-grinder",GRINDERS.map(g=>({n:g.n,sub:""})),(v)=>{ sel.grinder=v; onSelChange(); });
-  comboPour=makeCombo("in-pour","list-pour",POUR_STYLES,(v)=>{ sel.pour=v; onSelChange(); });
+  const alphaN=(a,b)=>a.n.localeCompare(b.n);
+  comboBean=makeCombo("in-bean","list-bean",[...BEANS].sort((a,b)=>a.localeCompare(b)),(v,c)=>{ sel.bean=v; sel.customBean=c; onSelChange(); });
+  comboOrigin=makeCombo("in-origin","list-origin",ORIGINS.map(o=>({n:o.n,sub:o.note})).sort((a,b)=>a.n==="Other / custom"?1:b.n==="Other / custom"?-1:alphaN(a,b)),(v,c)=>{ sel.origin=v; sel.customOrigin=c; onSelChange(); });
+  comboGrinder=makeCombo("in-grinder","list-grinder",GRINDERS.map(g=>({n:g.n,sub:""})).sort(alphaN),(v)=>{ sel.grinder=v; onSelChange(); });
+  comboPour=makeCombo("in-pour","list-pour",[...POUR_STYLES].sort(alphaN),(v)=>{ sel.pour=v; onSelChange(); });
   buildSeg("seg-process",PROCESSES.map(p=>p.n),()=>sel.process,(v)=>{ sel.process=v; onSelChange(); });
   buildSeg("seg-roast",ROASTS.map(r=>r.n),()=>sel.roast,(v)=>{ sel.roast=v; onSelChange(); });
   buildSeg("seg-style",STYLES,()=>sel.style,(v)=>{ sel.style=v;
@@ -1176,7 +1177,7 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
     sel.temp=$("in-temp").value.trim();
     onSelChange();
   });
-  [["in-farm","farm"],["in-plot","plot"],["in-lot","lot"]].forEach(([id,key])=>{
+  [["in-farm","farm"],["in-plot","plot"],["in-lot","lot"],["in-alt","alt"]].forEach(([id,key])=>{
     const el=$(id); if(!el) return;
     selectAllOnFocus(el);
     el.addEventListener("input",()=>{ sel[key]=el.value.trim(); onSelChange(); });
