@@ -143,6 +143,9 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Process</label><div class="seg" id="seg-process"></div></div>
       <div class="field"><label>Roastery</label><input id="log-roaster" type="text" autocomplete="off" placeholder="Bag scan fills this automatically, or type it manually"></div>
       <div class="field"><label>Roast</label><div class="seg" id="seg-roast"></div></div>
+    </div>
+    <div class="card">
+      <h2>Brewing</h2>
       <div class="field"><label>Hot / Iced</label><div class="seg" id="seg-style"></div></div>
       <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
       <div class="field"><label>Water temp (°C) — optional</label><input id="in-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="Recipe default"></div>
@@ -1139,7 +1142,7 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
     sel.origin=m.origin; sel.customOrigin=false;
     if(!sel.farm) sel.farm=m.farm; if(!sel.plot) sel.plot=m.plot; }
   const alphaN=(a,b)=>a.n.localeCompare(b.n);
-  comboBean=makeCombo("in-bean","list-bean",[...BEANS].sort((a,b)=>a.localeCompare(b)),(v,c)=>{ sel.bean=v; sel.customBean=c; onSelChange(); });
+  comboBean=makeCombo("in-bean","list-bean",[...BEANS].sort((a,b)=>a==="Other / custom"?1:b==="Other / custom"?-1:a.localeCompare(b)),(v,c)=>{ sel.bean=v; sel.customBean=c; onSelChange(); });
   comboOrigin=makeCombo("in-origin","list-origin",ORIGINS.map(o=>({n:o.n,sub:o.note})).sort((a,b)=>a.n==="Other / custom"?1:b.n==="Other / custom"?-1:alphaN(a,b)),(v,c)=>{ sel.origin=v; sel.customOrigin=c; onSelChange(); });
   comboGrinder=makeCombo("in-grinder","list-grinder",GRINDERS.map(g=>({n:g.n,sub:""})).sort(alphaN),(v)=>{ sel.grinder=v; onSelChange(); });
   comboPour=makeCombo("in-pour","list-pour",[...POUR_STYLES].sort(alphaN),(v)=>{ sel.pour=v; onSelChange(); });
