@@ -525,14 +525,15 @@ function renderRecipe(){
   if(sel.tune) used.push("tuned: "+TUNES[sel.tune].label);
   let html=`
     <div class="spec"><span class="k">Coffee</span><span class="v">${r.dose}g</span></div>
-    <div class="spec"><span class="k">Ratio</span><span class="v">1:${r.ratio}</span></div>
+    <div class="spec"><span class="k">Ratio</span><span class="v">1:${r.ratio}${r.iced?`<br><span style="font-weight:400;color:var(--sub);font-size:13px">final, incl. ice melt</span>`:""}</span></div>
     <div class="spec"><span class="k">Grind</span><span class="v">${esc(g.d)}<br><span style="font-weight:400;color:var(--sub);font-size:13px">${grindRef(r.grindIdx)}</span></span></div>
     <div class="spec"><span class="k">Water temp</span><span class="v">${r.temp}°C</span></div>`;
   if(r.iced){
     html+=`
+    <div class="spec"><span class="k">Brew ratio (hot water only)</span><span class="v">1:${(r.hotWater/r.dose).toFixed(1)}</span></div>
     <div class="spec"><span class="k">Hot water</span><span class="v">${r.hotWater}g</span></div>
     <div class="spec"><span class="k">Ice (in carafe)</span><span class="v">${r.ice}g</span></div>
-    <div class="spec"><span class="k">Total beverage</span><span class="v">${r.water}g</span></div>`;
+    <div class="spec"><span class="k">Total beverage (water + ice)</span><span class="v">${r.water}g</span></div>`;
   }else{
     html+=`<div class="spec"><span class="k">Water</span><span class="v">${r.water}g</span></div>`;
   }
