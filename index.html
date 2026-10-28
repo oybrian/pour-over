@@ -141,6 +141,11 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field hidden" id="scan-status-wrap"><label>Scan result</label><div id="scan-status" style="font-size:14px;color:var(--sub)"></div></div>
       <div class="field"><label>Bean</label><div class="input-wrap"><input id="in-bean" autocomplete="off" placeholder="Type to search…"><button type="button" class="clr-x hidden" id="clear-bean" aria-label="Clear bean">×</button><div class="combo-list" id="list-bean"></div></div></div>
       <div class="field"><label>Origin / region</label><div class="input-wrap"><input id="in-origin" autocomplete="off" placeholder="Type to search…"><button type="button" class="clr-x hidden" id="clear-origin" aria-label="Clear origin">×</button><div class="combo-list" id="list-origin"></div></div></div>
+      <div class="field"><label>Farm / estate — optional</label><input id="in-farm" type="text" autocomplete="off" placeholder="Type it in — e.g. Esmeralda, Elida, El Pergamino"></div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1"><label>Plot — optional</label><input id="in-plot" type="text" autocomplete="off" placeholder="e.g. Nido, Torre, Vuelta"></div>
+        <div class="field" style="flex:1"><label>Lot — optional</label><input id="in-lot" type="text" autocomplete="off" placeholder="e.g. 31325, GW DRD"></div>
+      </div>
       <div class="field"><label>Process</label><div class="seg" id="seg-process"></div></div>
       <div class="field"><label>Roast</label><div class="seg" id="seg-roast"></div></div>
       <div class="field"><label>Hot / Iced</label><div class="seg" id="seg-style"></div></div>
@@ -228,10 +233,7 @@ const ORIGINS=[
  {n:"Guatemala — Antigua", note:"Chocolate, spice, smoky-sweet", tip:"Medium-density; baseline works, watch for bitterness if over-extracted."},
  {n:"Costa Rica — Tarrazú", note:"Sweet, balanced, often honey-processed", tip:"Honey lots are sweet already — avoid over-extracting; keep pours gentle."},
  {n:"Panama — Boquete", note:"Geisha, floral, tea-like, prized", tip:"Delicate and often pricey — treat it like a washed Ethiopian: clean water, do not overheat."},
- {n:"Panama — Esmeralda, Boquete (Nido)", note:"Geisha · jasmine, bergamot, stone fruit", tip:"Esmeralda Special lots (91+ pts) come from named plots — Nido, at about 2,050m in Cañas Verdes, is the flagship and the source of recent Best of Panama winners. Washed: keep the water hot and the pours gentle; the florals open up as the cup cools, so taste it all the way down."},
- {n:"Panama — Elida, Boquete (Torre · Vuelta)", note:"Geisha · orange blossom, tangerine, lychee", tip:"Elida's top lots are named by plot + process: Torre is the washed, Vuelta the natural, both dark-room dried (DRD). For the natural, grind a touch coarser and keep agitation low — pushed too hard, the fruit turns winey."},
- {n:"Panama — El Pergamino, Volcán (Holy Bean)", note:"Geisha · white florals, pear, Earl Grey", tip:"Pergamino's Holy Bean Geisha grows at 1,800–2,000m in Bambito, on the Volcán side of Barú. Washed lots are delicate and tea-like — clean water, gentle spirals, do not overheat. Their Catuai Natural is the sweet, forgiving everyday cup."},
- {n:"Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)", note:"Geisha · jasmine, cranberry, tropical fruit", tip:"Longboard's tiny lots are fermented with wild native yeasts and dried in the dark — expect intense florals and unusual sweetness. Brew a small dose, keep pours gentle, and follow the cup as it cools."},
+ {n:"Panama — Volcán", note:"Geisha, floral, tea-like, high-grown", tip:"The Volcán side of Barú (Bambito, Paso Ancho) grows delicate, tea-like Geisha at 1,800–2,000m — clean water, gentle pours, do not overheat. Name the farm and plot in the fields below for farm-specific tips."},
  {n:"Rwanda", note:"Floral, tea-like, sweet", tip:"Similar handling to washed Ethiopians."},
  {n:"Sumatra", note:"Earthy, heavy, low acidity", tip:"Often darker-roasted; drop the water temperature a couple of degrees."},
  {n:"Hawaii — Kona", note:"Smooth, nutty, mild", tip:"Delicate flavors — do not overheat the water."},
@@ -273,8 +275,19 @@ const ARCHERS_STEPS=[
  {t:"2:00",f:0.8,label:"Third pour",note:"keep it gentle."},
  {t:"2:30",f:1,label:"Final pour",note:"pour in the centre only."}
 ];
+/* Known farms: typed manually in the Farm field (or filled by a bag scan).
+   Matching is by name keyword, so "Hacienda La Esmeralda" also matches. */
+const FARM_INFO={
+ "Esmeralda":{region:"Panama — Boquete", tip:"Esmeralda Special lots (91+ pts) come from named plots — Nido, at about 2,050m in Cañas Verdes, is the flagship and the source of recent Best of Panama winners. Washed: keep the water hot and the pours gentle; the florals open up as the cup cools, so taste it all the way down."},
+ "Elida":{region:"Panama — Boquete", tip:"Elida's top lots are named by plot + process: Torre is the washed, Vuelta the natural, both dark-room dried (DRD). For the natural, grind a touch coarser and keep agitation low — pushed too hard, the fruit turns winey."},
+ "El Pergamino":{region:"Panama — Volcán", tip:"Pergamino's Holy Bean Geisha grows at 1,800–2,000m in Bambito, on the Volcán side of Barú. Washed lots are delicate and tea-like — clean water, gentle spirals, do not overheat. Their Catuai Natural is the sweet, forgiving everyday cup."},
+ "Longboard":{region:"Panama — Boquete", tip:"Longboard's tiny lots are fermented with wild native yeasts and dried in the dark — expect intense florals and unusual sweetness. Brew a small dose, keep pours gentle, and follow the cup as it cools."}
+};
+function farmInfo(){ if(!sel.farm) return null; const f=sel.farm.toLowerCase();
+  for(const k in FARM_INFO){ if(f.indexOf(k.toLowerCase())>=0) return {name:k, region:FARM_INFO[k].region, tip:FARM_INFO[k].tip}; } return null; }
+function farmRecipeMap(){ const fi=farmInfo(); return fi?FARM_RECIPES[fi.name]:null; }
 const FARM_RECIPES={
- "Panama — Esmeralda, Boquete (Nido)":{
+ "Esmeralda":{
   "Washed":{temp:92,ratio:16,grind:1,total:"\u22481:30",tag:"Esmeralda washed (BlendIn)",
     steps:[{t:"0:00",f:0.19,label:"Bloom + first pour",note:"wet all grounds, swirl gently."},
            {t:"0:30",f:0.625,label:"Second pour",note:"slow spiral."},
@@ -288,7 +301,7 @@ const FARM_RECIPES={
            {t:"2:00",f:1,label:"Pour 5",note:"then let it draw down fully — about 3:40 total."}],
     note:"Farm profile — BlendIn's recipe for Esmeralda natural (Nido 1NC): 15g/250g, 94\u00B0C, Comandante 25 clicks, five equal pours every 30 seconds, rested 14 days. Hotter AND slower than their washed — the pours, not the temperature, control extraction here."}
  },
- "Panama — Elida, Boquete (Torre · Vuelta)":{
+ "Elida":{
   "Washed":{temp:96,ratio:15,grind:1,total:"\u22481:30",tag:"Elida washed DRD (BlendIn)",
     steps:[{t:"0:00",f:0.22,label:"Bloom",note:"wet all grounds, swirl gently."},
            {t:"0:30",f:1,label:"Main pour",note:"one continuous slow pour to full weight, then draw down — done around 1:30."}],
@@ -297,7 +310,7 @@ const FARM_RECIPES={
     steps:ARCHERS_STEPS,
     note:"Farm profile — Archers' recipe for Elida Vuelta Geisha Natural (Lot 0325): 15g, 90\u201393\u00B0C, 700\u2013800\u00B5m grind, 1:15. Vuelta naturals are anaerobically fermented for 3 days in sealed bags, then dark-room dried (DRD)."}
  },
- "Panama — El Pergamino, Volcán (Holy Bean)":{
+ "El Pergamino":{
   "Washed":{temp:92,ratio:15,grind:2,total:"2:00\u20133:20",tag:"Pergamino washed (Archers)",
     steps:ARCHERS_STEPS,
     note:"Farm profile — Archers' recipe for Pergamino Geisha Washed Lot 31325: 15g, 91\u201393\u00B0C, 650\u2013750\u00B5m grind, 1:15. No recipe is published under the Holy Bean name itself; this is the farm's washed Geisha lot recipe."},
@@ -305,7 +318,7 @@ const FARM_RECIPES={
     steps:ARCHERS_STEPS,
     note:"Farm profile — Archers publishes a word-for-word identical recipe for Pergamino's Geisha Natural Lot 2425 (15g, 91\u201393\u00B0C, 650\u2013750\u00B5m, 1:15). If the cup tastes heavy, the lever Archers leaves you is grind — one step coarser."}
  },
- "Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)":{
+ "Longboard":{
   "Washed":{temp:95,ratio:15,grind:1,total:"2:00\u20133:20",tag:"Longboard washed (Archers)",
     steps:ARCHERS_STEPS,
     note:"Farm profile — Archers' recipe for Longboard Misty Mountain Geisha Washed 16B (cold-ferment, DRD): 15g, 93\u201396\u00B0C — the hottest of Archers' Panama Geishas — with their finest grind (600\u2013700\u00B5m), 1:15."},
@@ -349,7 +362,7 @@ const LS_SEL="bloom_sel_v1", LS_LOG="bloom_log_v1";
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 /* ================= state ================= */
-const sel={ bean:"", origin:"", process:"", alt:"", roast:"", style:"", dose:"", grinder:"", pour:"",
+const sel={ bean:"", origin:"", farm:"", plot:"", lot:"", process:"", alt:"", roast:"", style:"", dose:"", grinder:"", pour:"",
   customBean:false, customOrigin:false, doseManual:false };
 /* select-all on focus for the dose field (iOS Safari: type=number ignores select()) */
 function selectAllOnFocus(el){
@@ -443,7 +456,7 @@ function buildRecipe(){
 
   const doseNum=parseFloat(sel.dose);
   const dose=(doseNum>0&&doseNum<=60)?Math.round(doseNum*10)/10:(iced?20:15);
-  const farmMap=FARM_RECIPES[sel.origin];
+  const farmMap=farmRecipeMap();
   const fp=(!iced&&farmMap&&sel.process&&farmMap[sel.process])?farmMap[sel.process]:null;
   let ratio=iced?16:roast.ratio;
   if(!iced&&proc&&proc.n==="Honey") ratio=16;
@@ -530,6 +543,7 @@ function buildRecipe(){
   if(pour==="4:6 (5 pours)") tips.push("4:6 method: first 2 pours (40%) set sweetness — pour them slower for a sweeter cup; last 3 pours (60%) set strength.");
   if(alt&&alt.tip) tips.push(alt.tip);
   if(origin&&origin.tip) tips.push(origin.tip);
+  const fiTip=farmInfo(); if(fiTip&&fiTip.tip&&(!origin||fiTip.tip!==origin.tip)) tips.push(fiTip.tip);
   if(iced) tips.push("Iced pour-over uses hotter water and a slightly finer grind than hot — the ice dilutes and chills, so extraction needs a head start.");
   if(!iced) tips.push("If the cup tastes sour, grind finer or raise the temperature; if bitter, go coarser or cooler. Change one variable at a time.");
   if(sel.customBean||sel.customOrigin) tips.push("This coffee is not in the built-in list, so the recipe uses the process, roast, and altitude settings as the baseline. Use the web search below to find roast-specific tips.");
@@ -549,6 +563,9 @@ function renderRecipe(){
   const used=[];
   if(sel.bean) used.push(sel.customBean?("“"+sel.bean+"”"):sel.bean);
   if(sel.origin) used.push(sel.origin);
+  if(sel.farm) used.push(sel.farm);
+  if(sel.plot) used.push(sel.plot);
+  if(sel.lot) used.push("Lot "+sel.lot);
   if(sel.process) used.push(sel.process);
   if(sel.alt&&sel.alt!=="Unknown") used.push(sel.alt);
   if(sel.roast) used.push(sel.roast+" roast");
@@ -723,7 +740,7 @@ function saveBrew(){
   }
   log.unshift({
     id:Date.now(), date:new Date().toISOString(),
-    bean:sel.bean, origin:sel.origin, process:sel.process, alt:sel.alt,
+    bean:sel.bean, origin:sel.origin, farm:sel.farm, plot:sel.plot, lot:sel.lot, process:sel.process, alt:sel.alt,
     roast:sel.roast, style:sel.style,
     recipe:lastRecipe?{dose:lastRecipe.dose,water:lastRecipe.water,ice:lastRecipe.ice,
       temp:lastRecipe.temp,grind:lastRecipe.grind.d,grindIdx:lastRecipe.grindIdx,
@@ -842,7 +859,7 @@ function renderLog(){
     const d=new Date(e.date);
     const ds=d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
     const stars="★".repeat(e.rating)+"☆".repeat(5-e.rating);
-    const selLine=[e.roaster?("☕ "+e.roaster):"",e.bean,e.origin,e.process,e.roast,e.style].filter(Boolean).join(" · ");
+    const selLine=[e.roaster?("☕ "+e.roaster):"",e.bean,e.origin,e.farm,e.plot,e.lot?("Lot "+e.lot):"",e.process,e.roast,e.style].filter(Boolean).join(" · ");
     const r=e.recipe?`${e.recipe.dose}g · 1:${e.recipe.ratio} · ${e.recipe.temp}°C · ${esc(e.recipe.grind)}`:"";
     let actLine="";
     if(e.actual&&(e.actual.timeSec||e.actual.temp)){
@@ -906,7 +923,7 @@ function loadTesseract(){
 }
 function parseBagText(text){
   const t=text.toLowerCase();
-  const out={bean:"",origin:"",process:"",alt:"",roast:"",roaster:"",customBean:false,customOrigin:false};
+  const out={bean:"",origin:"",farm:"",plot:"",process:"",alt:"",roast:"",roaster:"",customBean:false,customOrigin:false};
   // roastery: known names printed on the bag; the log field stays manual otherwise
   const ROASTER_KEYS=[
     ["sey coffee","Sey"],["onyx coffee lab","Onyx"],["onyx","Onyx"],["sey","Sey"],
@@ -956,10 +973,7 @@ function parseBagText(text){
     ["cerrado","Brazil — Cerrado"],["brazil","Brazil — Cerrado"],
     ["antigua","Guatemala — Antigua"],["guatemala","Guatemala — Antigua"],
     ["tarraz","Costa Rica — Tarrazú"],["costa rica","Costa Rica — Tarrazú"],
-    ["esmeralda","Panama — Esmeralda, Boquete (Nido)"],["elida","Panama — Elida, Boquete (Torre · Vuelta)"],
-    ["pergamino","Panama — El Pergamino, Volcán (Holy Bean)"],["holy bean","Panama — El Pergamino, Volcán (Holy Bean)"],
-    ["longboard","Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)"],["misty mountain","Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)"],["windy ridge","Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)"],
-    ["volcan","Panama — El Pergamino, Volcán (Holy Bean)"],["volcán","Panama — El Pergamino, Volcán (Holy Bean)"],
+    ["volcan","Panama — Volcán"],["volcán","Panama — Volcán"],
     ["boquete","Panama — Boquete"],["panama","Panama — Boquete"],
     ["rwanda","Rwanda"],["sumatra","Sumatra"],["kona","Hawaii — Kona"],["hawaii","Hawaii — Kona"],
     ["cajamarca","Peru — Cajamarca"],["peru","Peru — Cajamarca"],
@@ -975,7 +989,14 @@ function parseBagText(text){
     ["blue mountain","Jamaica — Blue Mountain"],["jamaica","Jamaica — Blue Mountain"],
     ["malabar","India — Malabar"],["india","India — Malabar"],["monsoon","India — Malabar"]
   ];
-  for(const [k,v] of ORIGIN_KEYS){ if(t.indexOf(k)>=0){ out.origin=v; break; } }
+  // farm + plot: named farms fill the manual Farm field; the farm's region fills Origin
+  const FARM_KEYS=[
+    ["nido","Esmeralda","Nido"],["torre","Elida","Torre"],["vuelta","Elida","Vuelta"],
+    ["holy bean","El Pergamino","Holy Bean"],["misty mountain","Longboard","Misty Mountain"],["windy ridge","Longboard","Windy Ridge"],
+    ["esmeralda","Esmeralda",""],["elida","Elida",""],["pergamino","El Pergamino",""],["longboard","Longboard",""]
+  ];
+  for(const [k,f,pl] of FARM_KEYS){ if(t.indexOf(k)>=0){ if(!out.farm){ out.farm=f; out.origin=FARM_INFO[f].region; } if(pl&&out.farm===f&&!out.plot) out.plot=pl; } }
+  for(const [k,v] of ORIGIN_KEYS){ if(!out.origin&&t.indexOf(k)>=0){ out.origin=v; break; } }
   // bean varietal
   const BEAN_KEYS=["heirloom","bourbon","typica","caturra","catuai","gesha","geisha","sl28","sl-28","sl34","sl-34","pacamara","mundo novo","villa sarchi","pacas","kent","java","pink bourbon","maragogipe","maragogype","ruiru","batian","catimor","s795","tabi","sudan rume","laurina","castillo"];
   const BEAN_MAP={"geisha":"Gesha","sl-28":"SL28","sl-34":"SL34","mundo novo":"Mundo Novo","villa sarchi":"Villa Sarchi","pink bourbon":"Pink Bourbon","maragogype":"Maragogipe","ruiru":"Ruiru 11","sudan rume":"Sudan Rume"};
@@ -1002,10 +1023,7 @@ const ORIGIN_PROFILE={
   "Guatemala — Antigua":{bean:"Bourbon",alt:"High (1,800m+)"},
   "Costa Rica — Tarrazú":{bean:"Villa Sarchi",alt:"High (1,800m+)"},
   "Panama — Boquete":{bean:"Gesha",alt:"High (1,800m+)"},
-  "Panama — Esmeralda, Boquete (Nido)":{bean:"Gesha",alt:"High (1,800m+)"},
-  "Panama — Elida, Boquete (Torre · Vuelta)":{bean:"Gesha",alt:"High (1,800m+)"},
-  "Panama — El Pergamino, Volcán (Holy Bean)":{bean:"Gesha",alt:"High (1,800m+)"},
-  "Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)":{bean:"Gesha",alt:"High (1,800m+)"},
+  "Panama — Volcán":{bean:"Gesha",alt:"High (1,800m+)"},
   "Rwanda":{bean:"Bourbon",alt:"High (1,800m+)"},
   "Burundi":{bean:"Bourbon",alt:"High (1,800m+)"},
   "Sumatra":{bean:"",alt:"Medium (1,200–1,800m)"},
@@ -1050,13 +1068,16 @@ function wireScanner(){
         }
       }
       const applied=[];
-      if(p.bean||p.origin||p.process||p.alt||p.roast){
+      if(p.bean||p.origin||p.farm||p.plot||p.process||p.alt||p.roast){
         sel.bean=""; sel.customBean=false;
         sel.origin=""; sel.customOrigin=false;
+        sel.farm=""; sel.plot=""; sel.lot="";
         sel.process=""; sel.alt=""; sel.roast="";
       }
       if(p.bean){ sel.bean=p.bean; sel.customBean=p.customBean; applied.push("bean: "+p.bean); }
       if(p.origin){ sel.origin=p.origin; sel.customOrigin=false; applied.push("origin: "+p.origin); }
+      if(p.farm){ sel.farm=p.farm; applied.push("farm: "+p.farm); }
+      if(p.plot){ sel.plot=p.plot; applied.push("plot: "+p.plot); }
       if(p.process){ sel.process=p.process; applied.push("process: "+p.process); }
       if(p.alt){ sel.alt=p.alt; applied.push("altitude: "+p.alt); }
       if(p.roast){ sel.roast=p.roast; applied.push("roast: "+p.roast); }
@@ -1121,7 +1142,7 @@ function saveSel(){
   try{ localStorage.setItem(LS_SEL,JSON.stringify(sel)); }catch(e){}
 }
 function clearAll(){
-  sel.bean=""; sel.origin=""; sel.process=""; sel.alt=""; sel.roast="";
+  sel.bean=""; sel.origin=""; sel.farm=""; sel.plot=""; sel.lot=""; sel.process=""; sel.alt=""; sel.roast="";
   sel.style=""; sel.dose=""; sel.grinder=""; sel.pour=""; sel.tune="";
   sel.customBean=false; sel.customOrigin=false; sel.doseManual=false;
   applySelToCombos(); onSelChange();
@@ -1138,11 +1159,24 @@ function applySelToCombos(){
   $("in-dose").value=sel.dose||"";
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
   $("in-temp").value=sel.temp||"";
+  const _f=$("in-farm"); if(_f) _f.value=sel.farm||"";
+  const _p=$("in-plot"); if(_p) _p.value=sel.plot||"";
+  const _l=$("in-lot"); if(_l) _l.value=sel.lot||"";
 }
 function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
 
 (function init(){
   try{ Object.assign(sel,JSON.parse(localStorage.getItem(LS_SEL)||"{}")); }catch(e){}
+  // migrate pre-split saves: farm-specific origin names become region + farm + plot
+  const OLD_FARM_ORIGINS={
+    "Panama — Esmeralda, Boquete (Nido)":{origin:"Panama — Boquete",farm:"Esmeralda",plot:"Nido"},
+    "Panama — Elida, Boquete (Torre · Vuelta)":{origin:"Panama — Boquete",farm:"Elida",plot:""},
+    "Panama — El Pergamino, Volcán (Holy Bean)":{origin:"Panama — Volcán",farm:"El Pergamino",plot:"Holy Bean"},
+    "Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)":{origin:"Panama — Boquete",farm:"Longboard",plot:""}
+  };
+  if(OLD_FARM_ORIGINS[sel.origin]){ const m=OLD_FARM_ORIGINS[sel.origin];
+    sel.origin=m.origin; sel.customOrigin=false;
+    if(!sel.farm) sel.farm=m.farm; if(!sel.plot) sel.plot=m.plot; }
   comboBean=makeCombo("in-bean","list-bean",BEANS,(v,c)=>{ sel.bean=v; sel.customBean=c; onSelChange(); });
   comboOrigin=makeCombo("in-origin","list-origin",ORIGINS.map(o=>({n:o.n,sub:o.note})),(v,c)=>{ sel.origin=v; sel.customOrigin=c; onSelChange(); });
   comboAlt=makeCombo("in-alt","list-alt",ALTS.map(a=>({n:a.n,sub:a.d})),(v)=>{ sel.alt=v; onSelChange(); });
@@ -1181,6 +1215,11 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   $("in-temp").addEventListener("input",()=>{
     sel.temp=$("in-temp").value.trim();
     onSelChange();
+  });
+  [["in-farm","farm"],["in-plot","plot"],["in-lot","lot"]].forEach(([id,key])=>{
+    const el=$(id); if(!el) return;
+    selectAllOnFocus(el);
+    el.addEventListener("input",()=>{ sel[key]=el.value.trim(); onSelChange(); });
   });
   $("save-log").onclick=saveBrew;
   const clBtn=$("clear-log");
