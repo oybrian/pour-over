@@ -133,6 +133,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Roast</label><input id="in-roast" autocomplete="off" placeholder="Light, Medium, Dark…"><div class="combo-list" id="list-roast"></div></div>
       <div class="field"><label>Hot / Iced</label><input id="in-style" autocomplete="off" placeholder="Hot, Iced…"><div class="combo-list" id="list-style"></div></div>
       <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
+      <div class="field"><label>Water temp (°C) — optional</label><input id="in-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="Recipe default"></div>
       <details class="more-opts">
         <summary>More options</summary>
         <div class="field"><label>Grinder</label><input id="in-grinder" autocomplete="off" placeholder="Select your grinder…"><div class="combo-list" id="list-grinder"></div></div>
@@ -157,6 +158,11 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Flavor notes</label><div class="chips" id="chips-flavor"></div></div>
       <div class="field"><label>Taste profile</label><div id="dims"></div></div>
       <div class="field"><label>Roaster</label><input id="log-roaster" type="text" autocomplete="off" placeholder="e.g. Onyx, Sey, Prodigal…"></div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1"><label>Actual water temp (°C)</label><input id="log-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></div>
+        <div class="field" style="flex:1"><label>Actual total time</label><input id="log-time" type="text" autocomplete="off" placeholder="e.g. 3:05"></div>
+      </div>
+      <div id="log-actual-note" style="font-size:13px;color:var(--sub);margin:-2px 0 10px"></div>
       <div class="field"><label>Notes</label><textarea id="log-notes" placeholder="What stood out? What would you change next time?"></textarea></div>
       <button class="btn primary" id="save-log">Save to brew log</button>
     </div>
@@ -201,6 +207,10 @@ const ORIGINS=[
  {n:"Guatemala — Antigua", note:"Chocolate, spice, smoky-sweet", tip:"Medium-density; baseline works, watch for bitterness if over-extracted."},
  {n:"Costa Rica — Tarrazú", note:"Sweet, balanced, often honey-processed", tip:"Honey lots are sweet already — avoid over-extracting; keep pours gentle."},
  {n:"Panama — Boquete", note:"Geisha, floral, tea-like, prized", tip:"Delicate and often pricey — treat it like a washed Ethiopian: clean water, do not overheat."},
+ {n:"Panama — Esmeralda, Boquete (Nido)", note:"Geisha · jasmine, bergamot, stone fruit", tip:"Esmeralda Special lots (91+ pts) come from named plots — Nido, at about 2,050m in Cañas Verdes, is the flagship and the source of recent Best of Panama winners. Washed: keep the water hot and the pours gentle; the florals open up as the cup cools, so taste it all the way down."},
+ {n:"Panama — Elida, Boquete (Torre · Vuelta)", note:"Geisha · orange blossom, tangerine, lychee", tip:"Elida's top lots are named by plot + process: Torre is the washed, Vuelta the natural, both dark-room dried (DRD). For the natural, grind a touch coarser and keep agitation low — pushed too hard, the fruit turns winey."},
+ {n:"Panama — El Pergamino, Volcán (Holy Bean)", note:"Geisha · white florals, pear, Earl Grey", tip:"Pergamino's Holy Bean Geisha grows at 1,800–2,000m in Bambito, on the Volcán side of Barú. Washed lots are delicate and tea-like — clean water, gentle spirals, do not overheat. Their Catuai Natural is the sweet, forgiving everyday cup."},
+ {n:"Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)", note:"Geisha · jasmine, cranberry, tropical fruit", tip:"Longboard's tiny lots are fermented with wild native yeasts and dried in the dark — expect intense florals and unusual sweetness. Brew a small dose, keep pours gentle, and follow the cup as it cools."},
  {n:"Rwanda", note:"Floral, tea-like, sweet", tip:"Similar handling to washed Ethiopians."},
  {n:"Sumatra", note:"Earthy, heavy, low acidity", tip:"Often darker-roasted; drop the water temperature a couple of degrees."},
  {n:"Hawaii — Kona", note:"Smooth, nutty, mild", tip:"Delicate flavors — do not overheat the water."},
@@ -252,8 +262,8 @@ const GRINDERS=[
  {n:"Comandante C40", unit:"clicks", vals:[19,22,25,28,31]},
  {n:"Fellow Ode Gen 2", unit:"", vals:[3,4,5,6,7]}
 ];
-const AROMAS=["Floral","Fruity","Citrus","Berry","Chocolate","Nutty","Caramel","Spicy","Earthy","Herbal"];
-const FLAVORS=["Sweet","Bright","Balanced","Clean","Juicy","Heavy body","Light body","Long finish","Bitter","Sour"];
+const AROMAS=["Floral","Jasmine","Bergamot","Orange blossom","Fruity","Citrus","Berry","Chocolate","Nutty","Caramel","Honey","Spicy","Earthy","Herbal"];
+const FLAVORS=["Sweet","Bright","Balanced","Clean","Juicy","Tea-like","Stone fruit","Tropical fruit","Lychee","Silky","Heavy body","Light body","Long finish","Bitter","Sour"];
 const TASTE_DIMS=["Sweetness","Acidity","Body","Bitterness","Aroma"];
 const TUNES={
   brighter:{label:"Brighter", grind:1, temp:0, why:"A coarser grind shortens extraction, letting bright acids shine before bitterness catches up."},
@@ -357,6 +367,9 @@ function buildRecipe(){
     grindIdx=clamp(grindIdx+TUNES[tuneKey].grind,0,4);
     temp=clamp(temp+TUNES[tuneKey].temp,85,96);
   }
+  const baseTemp=temp;
+  const tempOv=parseFloat(sel.temp);
+  if(tempOv>=80&&tempOv<=100) temp=Math.round(tempOv);
   const pour=sel.pour||"2 pours";
   if(pour==="4:6 (5 pours)") grindIdx=Math.min(4,grindIdx+1);
 
@@ -413,7 +426,7 @@ function buildRecipe(){
   if(!iced) tips.push("If the cup tastes sour, grind finer or raise the temperature; if bitter, go coarser or cooler. Change one variable at a time.");
   if(sel.customBean||sel.customOrigin) tips.push("This coffee is not in the built-in list, so the recipe uses the process, roast, and altitude settings as the baseline. Use the web search below to find roast-specific tips.");
 
-  return { dose, ratio:ratio.toFixed(1), water, hotWater, ice, temp, bloom, bloomTime,
+  return { dose, ratio:ratio.toFixed(1), water, hotWater, ice, temp, baseTemp, bloom, bloomTime,
     grind:GRINDS[grindIdx], grindIdx, steps, totalTime, tips, iced, tune:tuneKey, pour };
 }
 
@@ -433,6 +446,7 @@ function renderRecipe(){
   if(sel.roast) used.push(sel.roast+" roast");
   if(sel.style) used.push(sel.style);
   if(sel.dose) used.push(sel.dose+"g");
+  if(sel.temp) used.push(sel.temp+"°C (your temp)");
   if(sel.grinder) used.push(sel.grinder);
   if(sel.pour) used.push(sel.pour);
   if(sel.tune) used.push("tuned: "+TUNES[sel.tune].label);
@@ -467,6 +481,8 @@ function renderRecipe(){
     html='<div style="font-size:13px;color:var(--sub);margin-bottom:10px">Baseline recipe — select your coffee above to tune it.</div>'+html;
   }
   $("recipe-body").innerHTML=html;
+  const _ti=$("in-temp");
+  if(_ti&&!sel.temp) _ti.placeholder="Recipe default · "+r.baseTemp+"°C";
   const _bs=$("brew-start");
   if(_bs) _bs.onclick=()=>{ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){} startBrewTimer(); };
 
@@ -535,16 +551,43 @@ function getLog(){ try{ return JSON.parse(localStorage.getItem(LS_LOG)||"[]"); }
 function setLog(a){ try{ localStorage.setItem(LS_LOG,JSON.stringify(a)); }catch(e){} }
 
 let lastRecipe=null;
+function parseBrewTime(v){
+  v=String(v||"").trim(); if(!v) return null;
+  const mm=v.match(/^(\d+):([0-5]?\d)$/);
+  if(mm) return (+mm[1])*60+(+mm[2]);
+  const n=parseFloat(v);
+  if(n>0) return n>=30?Math.round(n):Math.round(n*60);
+  return null;
+}
 function saveBrew(){
   if(!rating){ alert("Tap the stars to rate this brew first."); return; }
   const log=getLog();
+  let aTime=parseBrewTime($("log-time")?$("log-time").value:"");
+  if(aTime==null&&typeof pendingActualSec!=="undefined"&&pendingActualSec!=null) aTime=pendingActualSec;
+  const aTempRaw=parseFloat($("log-temp")?$("log-temp").value:"");
+  const aTemp=(aTempRaw>=60&&aTempRaw<=100)?aTempRaw:null;
+  let actual=null;
+  if(aTime!=null||aTemp!=null){
+    actual={};
+    if(aTemp!=null) actual.temp=aTemp;
+    if(aTime!=null){
+      actual.timeSec=aTime;
+      if(lastRecipe&&lastRecipe.totalTime){
+        const tm=String(lastRecipe.totalTime).match(/(\d+):(\d+)\D+(\d+):(\d+)/);
+        if(tm){ const lo=(+tm[1])*60+(+tm[2]), hi=(+tm[3])*60+(+tm[4]);
+          actual.pace=aTime<lo?"fast":(aTime>hi?"slow":"on target");
+          actual.target=lastRecipe.totalTime; }
+      }
+    }
+  }
   log.unshift({
     id:Date.now(), date:new Date().toISOString(),
     bean:sel.bean, origin:sel.origin, process:sel.process, alt:sel.alt,
     roast:sel.roast, style:sel.style,
     recipe:lastRecipe?{dose:lastRecipe.dose,water:lastRecipe.water,ice:lastRecipe.ice,
       temp:lastRecipe.temp,grind:lastRecipe.grind.d,grindIdx:lastRecipe.grindIdx,
-      ratio:lastRecipe.ratio,pour:lastRecipe.pour}:null,
+      ratio:lastRecipe.ratio,pour:lastRecipe.pour,target:lastRecipe.totalTime}:null,
+    actual,
     grinder:sel.grinder,
     rating, aroma:[...pickedAroma], flavor:[...pickedFlavor],
     dims:Object.assign({},dimVals),
@@ -557,6 +600,10 @@ function saveBrew(){
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   $("log-notes").value="";
   $("log-roaster").value="";
+  if($("log-temp")) $("log-temp").value="";
+  if($("log-time")) $("log-time").value="";
+  if($("log-actual-note")) $("log-actual-note").textContent="";
+  if(typeof pendingActualSec!=="undefined") pendingActualSec=null;
   renderLog();
   alert("Saved to your brew log.");
 }
@@ -643,6 +690,14 @@ function renderLog(){
     const stars="★".repeat(e.rating)+"☆".repeat(5-e.rating);
     const selLine=[e.roaster?("☕ "+e.roaster):"",e.bean,e.origin,e.process,e.roast,e.style].filter(Boolean).join(" · ");
     const r=e.recipe?`${e.recipe.dose}g · 1:${e.recipe.ratio} · ${e.recipe.temp}°C · ${esc(e.recipe.grind)}`:"";
+    let actLine="";
+    if(e.actual&&(e.actual.timeSec||e.actual.temp)){
+      const fmtT=s=>{ s=Math.round(s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
+      const parts=[];
+      if(e.actual.timeSec) parts.push("\u23F1 "+fmtT(e.actual.timeSec)+(e.actual.pace?(" · "+e.actual.pace+(e.actual.target?(" vs target "+e.actual.target):"")):""));
+      if(e.actual.temp&&(!e.recipe||e.actual.temp!==e.recipe.temp)) parts.push("water "+e.actual.temp+"°C");
+      if(parts.length) actLine=parts.join(" · ");
+    }
     const notes=[];
     if(e.aroma&&e.aroma.length) notes.push("Aroma: "+e.aroma.join(", "));
     if(e.flavor&&e.flavor.length) notes.push("Flavor: "+e.flavor.join(", "));
@@ -660,6 +715,7 @@ function renderLog(){
       <div class="meta">${ds}</div>
       <div class="sel"><span class="r">${stars}</span> ${esc(selLine)}</div>
       ${r?`<div class="meta">${esc(r)}${e.recipe.ice?` · ${e.recipe.ice}g ice`:""}</div>`:""}
+      ${actLine?`<div class="meta">${esc(actLine)}</div>`:""}
       ${dimHtml}
       ${notes.length?`<div class="notes">${notes.map(esc).join("<br>")}</div>`:""}
       <div style="margin-top:6px"><button type="button" class="btn ghost small" data-del="${e.id}" style="width:auto;padding:6px 14px;font-size:13px">Delete</button></div>
@@ -715,6 +771,10 @@ function parseBagText(text){
     ["cerrado","Brazil — Cerrado"],["brazil","Brazil — Cerrado"],
     ["antigua","Guatemala — Antigua"],["guatemala","Guatemala — Antigua"],
     ["tarraz","Costa Rica — Tarrazú"],["costa rica","Costa Rica — Tarrazú"],
+    ["esmeralda","Panama — Esmeralda, Boquete (Nido)"],["elida","Panama — Elida, Boquete (Torre · Vuelta)"],
+    ["pergamino","Panama — El Pergamino, Volcán (Holy Bean)"],["holy bean","Panama — El Pergamino, Volcán (Holy Bean)"],
+    ["longboard","Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)"],["misty mountain","Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)"],["windy ridge","Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)"],
+    ["volcan","Panama — El Pergamino, Volcán (Holy Bean)"],["volcán","Panama — El Pergamino, Volcán (Holy Bean)"],
     ["boquete","Panama — Boquete"],["panama","Panama — Boquete"],
     ["rwanda","Rwanda"],["sumatra","Sumatra"],["kona","Hawaii — Kona"],["hawaii","Hawaii — Kona"],
     ["cajamarca","Peru — Cajamarca"],["peru","Peru — Cajamarca"],
@@ -757,6 +817,10 @@ const ORIGIN_PROFILE={
   "Guatemala — Antigua":{bean:"Bourbon",alt:"High (1,800m+)"},
   "Costa Rica — Tarrazú":{bean:"Villa Sarchi",alt:"High (1,800m+)"},
   "Panama — Boquete":{bean:"Gesha",alt:"High (1,800m+)"},
+  "Panama — Esmeralda, Boquete (Nido)":{bean:"Gesha",alt:"High (1,800m+)"},
+  "Panama — Elida, Boquete (Torre · Vuelta)":{bean:"Gesha",alt:"High (1,800m+)"},
+  "Panama — El Pergamino, Volcán (Holy Bean)":{bean:"Gesha",alt:"High (1,800m+)"},
+  "Panama — Longboard, Boquete (Misty Mountain · Windy Ridge)":{bean:"Gesha",alt:"High (1,800m+)"},
   "Rwanda":{bean:"Bourbon",alt:"High (1,800m+)"},
   "Burundi":{bean:"Bourbon",alt:"High (1,800m+)"},
   "Sumatra":{bean:"",alt:"Medium (1,200–1,800m)"},
@@ -889,6 +953,7 @@ function applySelToCombos(){
   comboPour.set(sel.pour,false);
   $("in-dose").value=sel.dose||"";
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
+  $("in-temp").value=sel.temp||"";
 }
 function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
 
@@ -921,6 +986,11 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
     sel.doseManual=!!sel.dose;
     onSelChange();
   });
+  selectAllOnFocus($("in-temp"));
+  $("in-temp").addEventListener("input",()=>{
+    sel.temp=$("in-temp").value.trim();
+    onSelChange();
+  });
   $("save-log").onclick=saveBrew;
   $("tab-brew").onclick=()=>switchTab("brew");
   $("tab-dial").onclick=()=>switchTab("dial");
@@ -931,7 +1001,26 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
 })();
 /* ================= brew timer ================= */
 let btSteps=[], btIdx=-1, btTimer=null, btStartT=0, btBase=0, btPaused=false, btDone=false;
+let pendingActualSec=null;
 function btVib(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+function captureActual(sec){
+  if(!(sec>=20)) return;
+  pendingActualSec=Math.round(sec);
+  const lt=$("log-time"); if(lt) lt.value=btFmt(pendingActualSec);
+  const lp=$("log-temp"); if(lp&&!lp.value&&typeof lastRecipe!=="undefined"&&lastRecipe) lp.value=lastRecipe.temp;
+  const n=$("log-actual-note");
+  if(n) n.textContent="\u23F1 From the timer: total "+btFmt(pendingActualSec)+" — it will be saved with your next log entry. Edit the fields above if needed.";
+}
+function btFinish(sec){
+  btDone=true;
+  if(btTimer){ clearInterval(btTimer); btTimer=null; }
+  captureActual(sec);
+  $("bt-progress").textContent="Done";
+  $("bt-current").innerHTML='<div class="bt-done">\u2615 Enjoy your coffee!</div><div style="text-align:center;font-size:15px;color:var(--sub);margin-top:6px">Total time '+btFmt(sec)+'</div>';
+  $("bt-next").innerHTML="";
+  $("bt-pause").textContent="Pause";
+  btVib([60,120,60]);
+}
 function parseStepSec(t){ const m=String(t).match(/(\d+):(\d+)/); return m?(+m[1])*60+(+m[2]):null; }
 function btFmt(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
 function startBrewTimer(){
@@ -941,6 +1030,7 @@ function startBrewTimer(){
     .filter(s=>s.sec!=null).sort((a,b)=>a.sec-b.sec);
   if(!btSteps.length) return;
   btIdx=-1; btBase=0; btPaused=false; btDone=false;
+  pendingActualSec=null;
   btStartT=Date.now();
   $("brew-timer").classList.remove("bt-hidden");
   document.body.style.overflow="hidden";
@@ -956,13 +1046,7 @@ function tickBrewTimer(){
   if(btDone) return;
   const last=btSteps[btSteps.length-1];
   if(el>=last.sec){
-    btDone=true;
-    if(btTimer){ clearInterval(btTimer); btTimer=null; }
-    $("bt-progress").textContent="Done";
-    $("bt-current").innerHTML='<div class="bt-done">\u2615 Enjoy your coffee!</div>';
-    $("bt-next").innerHTML="";
-    $("bt-pause").textContent="Pause";
-    btVib([60,120,60]);
+    btFinish(last.sec);
     return;
   }
   let idx=0;
@@ -979,12 +1063,17 @@ function tickBrewTimer(){
   }
 }
 function closeBrewTimer(){
+  if(!btDone){ const el=btElapsed()/1000; if(el>=45) captureActual(el); }
   if(btTimer){ clearInterval(btTimer); btTimer=null; }
   $("brew-timer").classList.add("bt-hidden");
   document.body.style.overflow="";
 }
 function initBrewTimer(){
   $("bt-close").onclick=()=>{ btVib(10); closeBrewTimer(); };
+  $("bt-finish").onclick=()=>{ btVib(10);
+    if(btDone){ closeBrewTimer(); return; }
+    btFinish(btElapsed()/1000);
+  };
   $("bt-pause").onclick=function(){ btVib(10); if(btDone) return;
     if(btPaused){ btStartT=Date.now(); btPaused=false; this.textContent="Pause"; }
     else{ btBase+=Date.now()-btStartT; btPaused=true; this.textContent="Resume"; }
@@ -1010,6 +1099,7 @@ else initBrewTimer();
   <div class="bt-next" id="bt-next"></div>
   <div class="bt-controls">
     <button id="bt-pause" class="btn ghost">Pause</button>
+    <button id="bt-finish" class="btn primary">Finish</button>
     <button id="bt-reset" class="btn ghost">Reset</button>
   </div>
 </div>
