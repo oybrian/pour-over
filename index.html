@@ -169,7 +169,7 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       <div class="field"><label>Aroma notes</label><div class="chips" id="chips-aroma"></div></div>
       <div class="field"><label>Flavor notes</label><div class="chips" id="chips-flavor"></div></div>
       <div class="field"><label>Taste profile</label><div id="dims"></div></div>
-      <div class="field"><label>Roaster</label><input id="log-roaster" type="text" autocomplete="off" placeholder="e.g. Onyx, Sey, Prodigal…"></div>
+      <div class="field"><label>Roastery</label><input id="log-roaster" type="text" autocomplete="off" placeholder="Bag scan fills this automatically, or type it manually"></div>
       <div style="display:flex;gap:10px">
         <div class="field" style="flex:1"><label>Actual water temp (°C)</label><input id="log-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></div>
         <div class="field" style="flex:1"><label>Actual total time</label><input id="log-time" type="text" autocomplete="off" placeholder="e.g. 3:05"></div>
@@ -904,7 +904,29 @@ function loadTesseract(){
 }
 function parseBagText(text){
   const t=text.toLowerCase();
-  const out={bean:"",origin:"",process:"",alt:"",roast:"",customBean:false,customOrigin:false};
+  const out={bean:"",origin:"",process:"",alt:"",roast:"",roaster:"",customBean:false,customOrigin:false};
+  // roastery: known names printed on the bag; the log field stays manual otherwise
+  const ROASTER_KEYS=[
+    ["sey coffee","Sey"],["onyx coffee lab","Onyx"],["onyx","Onyx"],["sey","Sey"],
+    ["george howell","George Howell"],["prodigal","Prodigal"],
+    ["blendin","BlendIn"],["archers","Archers"],["blackboard","Blackboard"],
+    ["gardelli","Gardelli"],["julith","Julith"],["sulalat","Sulalat"],
+    ["crowd roaster","CROWD ROASTER"],["coffea circulor","Coffea Circulor"],
+    ["coffee libre","Coffee Libre"],["la cabra","La Cabra"],
+    ["manhattan","Manhattan"],["dak","DAK"],["september","September"],
+    ["hydrangea","Hydrangea"],["clandestino","Clandestino"],["koko","KoKo"]
+  ];
+  for(const [k,v] of ROASTER_KEYS){
+    const re=new RegExp("\\b"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b");
+    if(re.test(t)){ out.roaster=v; break; }
+  }
+  if(!out.roaster){
+    const lines=String(text||"").split(/\r?\n/);
+    for(const line of lines){
+      const m=line.match(/(?:roasted\s+by\s+|roastery\s*[:\-]\s*|roaster\s*[:\-]\s*)([A-Za-z][A-Za-z0-9&.'’ -]{1,40})/i);
+      if(m){ out.roaster=m[1].trim().replace(/\s{2,}/g," "); break; }
+    }
+  }
   // process
   if(/\banaerobic\b/.test(t)) out.process="Natural";
   else if(/\bnatural\b/.test(t)) out.process="Natural";
@@ -1036,6 +1058,7 @@ function wireScanner(){
       if(p.process){ sel.process=p.process; applied.push("process: "+p.process); }
       if(p.alt){ sel.alt=p.alt; applied.push("altitude: "+p.alt); }
       if(p.roast){ sel.roast=p.roast; applied.push("roast: "+p.roast); }
+      if(p.roaster){ $("log-roaster").value=p.roaster; applied.push("roastery: "+p.roaster); }
       applySelToCombos(); onSelChange();
       let msg="";
       if(applied.length) msg+="Detected — "+applied.join(", ")+". ";
