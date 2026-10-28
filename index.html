@@ -62,6 +62,8 @@ textarea{ width:100%; font-size:16px; padding:12px; border:1px solid var(--line)
 textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 .log-item{ border-bottom:1px solid var(--line); padding:12px 0; }
 .log-item:last-child{ border-bottom:0; }
+.log-item{ cursor:pointer; }
+.log-item:active{ background:rgba(0,0,0,.045); }
 .log-item .meta{ font-size:13px; color:var(--sub); margin-bottom:4px; }
 .log-item .sel{ font-size:15px; font-weight:600; margin-bottom:4px; }
 .log-item .notes{ font-size:14px; color:#3a3a3c; line-height:1.5; }
@@ -100,18 +102,6 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 #photo-view{ position:fixed; inset:0; z-index:120; background:rgba(0,0,0,.93); display:flex; align-items:center; justify-content:center; padding:16px; }
 #photo-view.pv-hidden{ display:none; }
 #photo-view img{ max-width:100%; max-height:100%; border-radius:10px; }
-/* faint coffee-ring stains on the brew log card */
-#view-log .card{
-  background-color:#fff;
-  background-image:
-    radial-gradient(circle at 88% 10%, rgba(0,0,0,0) 28px, rgba(196,148,88,.07) 31px, rgba(0,0,0,0) 34px, rgba(146,98,44,.22) 37px, rgba(146,98,44,.12) 40px, rgba(0,0,0,0) 44px),
-    radial-gradient(circle at 6% 58%, rgba(0,0,0,0) 42px, rgba(196,148,88,.06) 45px, rgba(0,0,0,0) 48px, rgba(146,98,44,.18) 51px, rgba(146,98,44,.10) 55px, rgba(0,0,0,0) 59px),
-    radial-gradient(circle at 68% 94%, rgba(0,0,0,0) 21px, rgba(196,148,88,.07) 24px, rgba(0,0,0,0) 26px, rgba(146,98,44,.20) 29px, rgba(146,98,44,.11) 32px, rgba(0,0,0,0) 36px),
-    radial-gradient(circle at 32% 30%, rgba(0,0,0,0) 3px, rgba(146,98,44,.16) 4px, rgba(0,0,0,0) 6px),
-    radial-gradient(circle at 80% 66%, rgba(0,0,0,0) 2px, rgba(146,98,44,.15) 3px, rgba(0,0,0,0) 5px),
-    radial-gradient(circle at 45% 76%, rgba(0,0,0,0) 2px, rgba(146,98,44,.13) 3px, rgba(0,0,0,0) 4px),
-    radial-gradient(circle at 22% 82%, rgba(0,0,0,0) 1px, rgba(146,98,44,.12) 2px, rgba(0,0,0,0) 3px);
-}
 </style>
 </head>
 <body>
@@ -821,6 +811,27 @@ function renderDialIn(){
     return `<div class="log-item"><div class="sel"><span class="r">${"★".repeat(e.rating)+"☆".repeat(5-e.rating)}</span> ${esc(line)}</div></div>`;
   }).join("");
 }
+/* Load a past brew's settings back into the Brew form (ratings/notes stay in the log). */
+function loadEntry(e){
+  if(!e) return;
+  sel.bean=e.bean||""; sel.origin=e.origin||""; sel.farm=e.farm||""; sel.plot=e.plot||""; sel.lot=e.lot||"";
+  sel.alt=e.alt||""; sel.process=e.process||""; sel.roast=e.roast||""; sel.style=e.style||"";
+  sel.grinder=e.grinder||"";
+  sel.pour=(e.recipe&&e.recipe.pour&&POUR_STYLES.some(p=>p.n===e.recipe.pour))?e.recipe.pour:"";
+  sel.customBean=!!sel.bean&&!BEANS.includes(sel.bean);
+  sel.customOrigin=!!sel.origin&&!ORIGINS.some(o=>o.n===sel.origin);
+  if(e.recipe&&e.recipe.dose){ sel.dose=String(e.recipe.dose); sel.doseManual=true; }
+  else{ sel.dose=""; sel.doseManual=false; }
+  sel.tune=null;
+  const rt=$("log-roaster"); if(rt) rt.value=e.roaster||"";
+  const ti=$("in-temp"); if(ti) ti.value="";
+  applySelToCombos();
+  if(typeof buildTunes==="function") buildTunes();
+  onSelChange();
+  try{ if(navigator.vibrate) navigator.vibrate(10); }catch(err){}
+  switchTab("brew");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 function renderLog(){
   const log=getLog();
   const clw=$("clear-log-wrap"); if(clw) clw.classList.toggle("hidden",!log.length);
@@ -854,7 +865,7 @@ function renderLog(){
       }
     }
     return `<div class="log-item" data-id="${e.id}">
-      <div class="meta">${ds}</div>
+      <div class="meta">${ds}<span style="float:right;font-size:12px;color:var(--acc);font-weight:600">↺ Rebrew</span></div>
       <div class="sel"><span class="r">${stars}</span> ${esc(selLine)}</div>
       ${r?`<div class="meta">${esc(r)}${e.recipe.ice?` · ${e.recipe.ice}g ice`:""}</div>`:""}
       ${actLine?`<div class="meta">${esc(actLine)}</div>`:""}
@@ -878,6 +889,13 @@ function renderLog(){
       pvImg.src=im.src;
       pv.classList.remove("pv-hidden");
     };
+  });
+  box.querySelectorAll(".log-item").forEach(item=>{
+    item.addEventListener("click",ev=>{
+      if(ev.target.closest("[data-del]")||ev.target.closest("[data-photo]")) return;
+      const entry=getLog().find(x=>x.id===+item.getAttribute("data-id"));
+      if(entry) loadEntry(entry);
+    });
   });
 }
 
