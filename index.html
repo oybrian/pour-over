@@ -50,6 +50,14 @@ main{ padding:10px 16px 40px; max-width:640px; margin:0 auto; }
 .chips{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 12px; }
 .chips button{ border:1px solid var(--line); background:#fafafa; border-radius:20px; padding:8px 14px; font-size:14px; cursor:pointer; }
 .chips button.on{ background:var(--acc); border-color:var(--acc); color:#fff; }
+.seg{ display:flex; gap:8px; }
+.seg button{ flex:1; border:1px solid var(--line); background:#fafafa; border-radius:12px; padding:12px 0; font-size:15px; font-weight:600; color:var(--ink); cursor:pointer; transition:transform .1s ease, opacity .1s ease; -webkit-tap-highlight-color:transparent; }
+.seg button.on{ background:var(--acc); border-color:var(--acc); color:#fff; }
+.seg button:active{ transform:scale(.96); opacity:.85; }
+.input-wrap{ position:relative; }
+.input-wrap input{ padding-right:42px; }
+.clr-x{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px; border-radius:50%; border:0; background:#e9e9ee; color:var(--sub); font-size:16px; line-height:1; cursor:pointer; z-index:21; }
+.clr-x:active{ transform:translateY(-50%) scale(.9); }
 textarea{ width:100%; font-size:16px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fafafa; min-height:70px; font-family:inherit; resize:vertical; }
 textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 .log-item{ border-bottom:1px solid var(--line); padding:12px 0; }
@@ -131,11 +139,11 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
       </div>
       <input type="file" id="scan-file" accept="image/*" class="hidden">
       <div class="field hidden" id="scan-status-wrap"><label>Scan result</label><div id="scan-status" style="font-size:14px;color:var(--sub)"></div></div>
-      <div class="field"><label>Bean</label><input id="in-bean" autocomplete="off" placeholder="Type to search…"><div class="combo-list" id="list-bean"></div></div>
-      <div class="field"><label>Origin / region</label><input id="in-origin" autocomplete="off" placeholder="Type to search…"><div class="combo-list" id="list-origin"></div></div>
-      <div class="field"><label>Process</label><input id="in-process" autocomplete="off" placeholder="Washed, Honey, Natural…"><div class="combo-list" id="list-process"></div></div>
-      <div class="field"><label>Roast</label><input id="in-roast" autocomplete="off" placeholder="Light, Medium, Dark…"><div class="combo-list" id="list-roast"></div></div>
-      <div class="field"><label>Hot / Iced</label><input id="in-style" autocomplete="off" placeholder="Hot, Iced…"><div class="combo-list" id="list-style"></div></div>
+      <div class="field"><label>Bean</label><div class="input-wrap"><input id="in-bean" autocomplete="off" placeholder="Type to search…"><button type="button" class="clr-x hidden" id="clear-bean" aria-label="Clear bean">×</button><div class="combo-list" id="list-bean"></div></div></div>
+      <div class="field"><label>Origin / region</label><div class="input-wrap"><input id="in-origin" autocomplete="off" placeholder="Type to search…"><button type="button" class="clr-x hidden" id="clear-origin" aria-label="Clear origin">×</button><div class="combo-list" id="list-origin"></div></div></div>
+      <div class="field"><label>Process</label><div class="seg" id="seg-process"></div></div>
+      <div class="field"><label>Roast</label><div class="seg" id="seg-roast"></div></div>
+      <div class="field"><label>Hot / Iced</label><div class="seg" id="seg-style"></div></div>
       <div class="field"><label>Coffee dose (g)</label><input id="in-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="15"></div>
       <div class="field"><label>Water temp (°C) — optional</label><input id="in-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="Recipe default"></div>
       <details class="more-opts">
@@ -393,6 +401,32 @@ function makeCombo(inputId, listId, options, onPick){
     },150);
   });
   return { get:()=>current, set:(v,custom)=>{ current=v; input.value=v||""; } };
+}
+
+/* segmented button groups (Process / Roast / Hot-Iced) */
+function buildSeg(id, options, get, pick){
+  const box=$(id); if(!box) return;
+  box.innerHTML="";
+  options.forEach(o=>{
+    const b=document.createElement("button");
+    b.type="button"; b.textContent=o; b.dataset.val=o;
+    if(get()===o) b.classList.add("on");
+    b.onclick=()=>{ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){}
+      pick(get()===o?"":o); refreshSegs(); };
+    box.appendChild(b);
+  });
+}
+function refreshSegs(){
+  [["seg-process","process"],["seg-roast","roast"],["seg-style","style"]].forEach(([id,key])=>{
+    const box=$(id); if(!box) return;
+    box.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.val===sel[key]));
+  });
+  refreshClearBtns();
+}
+function refreshClearBtns(){
+  const b=$("clear-bean"), o=$("clear-origin"), bi=$("in-bean"), oi=$("in-origin");
+  if(b&&bi) b.classList.toggle("hidden", !bi.value);
+  if(o&&oi) o.classList.toggle("hidden", !oi.value);
 }
 
 /* ================= recipe engine ================= */
@@ -1068,16 +1102,14 @@ function clearAll(){
   applySelToCombos(); onSelChange();
 }
 
-let comboBean, comboOrigin, comboProcess, comboAlt, comboRoast, comboStyle, comboGrinder, comboPour;
+let comboBean, comboOrigin, comboAlt, comboGrinder, comboPour;
 function applySelToCombos(){
   comboBean.set(sel.bean,sel.customBean);
   comboOrigin.set(sel.origin,sel.customOrigin);
-  comboProcess.set(sel.process,false);
   comboAlt.set(sel.alt,false);
-  comboRoast.set(sel.roast,false);
-  comboStyle.set(sel.style,false);
   comboGrinder.set(sel.grinder,false);
   comboPour.set(sel.pour,false);
+  refreshSegs();
   $("in-dose").value=sel.dose||"";
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
   $("in-temp").value=sel.temp||"";
@@ -1088,15 +1120,21 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   try{ Object.assign(sel,JSON.parse(localStorage.getItem(LS_SEL)||"{}")); }catch(e){}
   comboBean=makeCombo("in-bean","list-bean",BEANS,(v,c)=>{ sel.bean=v; sel.customBean=c; onSelChange(); });
   comboOrigin=makeCombo("in-origin","list-origin",ORIGINS.map(o=>({n:o.n,sub:o.note})),(v,c)=>{ sel.origin=v; sel.customOrigin=c; onSelChange(); });
-  comboProcess=makeCombo("in-process","list-process",PROCESSES.map(p=>({n:p.n,sub:p.d})),(v)=>{ sel.process=v; onSelChange(); });
   comboAlt=makeCombo("in-alt","list-alt",ALTS.map(a=>({n:a.n,sub:a.d})),(v)=>{ sel.alt=v; onSelChange(); });
-  comboRoast=makeCombo("in-roast","list-roast",ROASTS.map(r=>({n:r.n,sub:""})),(v)=>{ sel.roast=v; onSelChange(); });
   comboGrinder=makeCombo("in-grinder","list-grinder",GRINDERS.map(g=>({n:g.n,sub:""})),(v)=>{ sel.grinder=v; onSelChange(); });
   comboPour=makeCombo("in-pour","list-pour",POUR_STYLES,(v)=>{ sel.pour=v; onSelChange(); });
-  comboStyle=makeCombo("in-style","list-style",STYLES,(v)=>{ sel.style=v;
+  buildSeg("seg-process",PROCESSES.map(p=>p.n),()=>sel.process,(v)=>{ sel.process=v; onSelChange(); });
+  buildSeg("seg-roast",ROASTS.map(r=>r.n),()=>sel.roast,(v)=>{ sel.roast=v; onSelChange(); });
+  buildSeg("seg-style",STYLES,()=>sel.style,(v)=>{ sel.style=v;
     if(!sel.doseManual){ sel.dose=""; $("in-dose").value=""; $("in-dose").placeholder=v==="Iced"?"20":"15"; }
     onSelChange(); });
   applySelToCombos();
+  $("clear-bean").onclick=()=>{ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){}
+    comboBean.set("",false); sel.bean=""; sel.customBean=false; onSelChange(); refreshClearBtns(); };
+  $("clear-origin").onclick=()=>{ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){}
+    comboOrigin.set("",false); sel.origin=""; sel.customOrigin=false; onSelChange(); refreshClearBtns(); };
+  $("in-bean").addEventListener("input",refreshClearBtns);
+  $("in-origin").addEventListener("input",refreshClearBtns);
 
   buildDims();
   buildTunes();
