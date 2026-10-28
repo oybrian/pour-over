@@ -93,6 +93,10 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
 .bt-controls{ margin-top:auto; display:flex; gap:10px; }
 .bt-controls .btn{ margin-top:0; }
 .bt-done{ text-align:center; font-size:20px; font-weight:700; }
+/* photo lightbox */
+#photo-view{ position:fixed; inset:0; z-index:120; background:rgba(0,0,0,.93); display:flex; align-items:center; justify-content:center; padding:16px; }
+#photo-view.pv-hidden{ display:none; }
+#photo-view img{ max-width:100%; max-height:100%; border-radius:10px; }
 /* faint coffee-ring stains on the brew log card */
 #view-log .card{
   background-color:#fff;
@@ -163,6 +167,14 @@ textarea:focus{ outline:none; border-color:var(--acc); background:#fff; }
         <div class="field" style="flex:1"><label>Actual total time</label><input id="log-time" type="text" autocomplete="off" placeholder="e.g. 3:05"></div>
       </div>
       <div id="log-actual-note" style="font-size:13px;color:var(--sub);margin:-2px 0 10px"></div>
+      <div class="field"><label>Photo — bag / lot label (optional)</label>
+        <button class="btn ghost small" id="log-photo-btn" type="button" style="width:auto">Add photo</button>
+        <input type="file" id="log-photo-file" accept="image/*" class="hidden">
+        <div id="log-photo-wrap" class="hidden">
+          <img id="log-photo-preview" alt="Attached photo" style="max-width:100%;max-height:160px;border-radius:10px;margin-top:8px">
+          <div><button class="btn ghost small" id="log-photo-remove" type="button" style="width:auto;margin-top:6px">Remove photo</button></div>
+        </div>
+      </div>
       <div class="field"><label>Notes</label><textarea id="log-notes" placeholder="What stood out? What would you change next time?"></textarea></div>
       <button class="btn primary" id="save-log">Save to brew log</button>
     </div>
@@ -547,8 +559,40 @@ function buildChips(id, items, set){
     box.appendChild(b);
   });
 }
+let pendingPhoto=null;
+function wirePhoto(){
+  const btn=$("log-photo-btn"), file=$("log-photo-file");
+  if(!btn||!file) return;
+  btn.onclick=()=>{ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){} file.click(); };
+  file.onchange=()=>{
+    const f=file.files&&file.files[0]; if(!f) return;
+    const url=URL.createObjectURL(f);
+    const img=new Image();
+    img.onload=()=>{
+      const max=1024, w0=img.naturalWidth||max, h0=img.naturalHeight||max;
+      const sc=Math.min(1,max/Math.max(w0,h0));
+      const c=document.createElement("canvas");
+      c.width=Math.round(w0*sc); c.height=Math.round(h0*sc);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      try{ pendingPhoto=c.toDataURL("image/jpeg",0.78); }catch(e){ pendingPhoto=null; }
+      if(pendingPhoto){
+        $("log-photo-preview").src=pendingPhoto;
+        $("log-photo-wrap").classList.remove("hidden");
+      }else alert("That photo could not be attached.");
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); alert("That photo could not be attached."); };
+    img.src=url;
+  };
+  $("log-photo-remove").onclick=()=>{
+    pendingPhoto=null; file.value="";
+    $("log-photo-wrap").classList.add("hidden");
+  };
+  const pv=$("photo-view");
+  if(pv) pv.onclick=()=>pv.classList.add("pv-hidden");
+}
 function getLog(){ try{ return JSON.parse(localStorage.getItem(LS_LOG)||"[]"); }catch(e){ return []; } }
-function setLog(a){ try{ localStorage.setItem(LS_LOG,JSON.stringify(a)); }catch(e){} }
+function setLog(a){ try{ localStorage.setItem(LS_LOG,JSON.stringify(a)); return true; }catch(e){ return false; } }
 
 let lastRecipe=null;
 function parseBrewTime(v){
@@ -588,13 +632,20 @@ function saveBrew(){
       temp:lastRecipe.temp,grind:lastRecipe.grind.d,grindIdx:lastRecipe.grindIdx,
       ratio:lastRecipe.ratio,pour:lastRecipe.pour,target:lastRecipe.totalTime}:null,
     actual,
+    photo:(typeof pendingPhoto!=="undefined"&&pendingPhoto)?pendingPhoto:null,
     grinder:sel.grinder,
     rating, aroma:[...pickedAroma], flavor:[...pickedFlavor],
     dims:Object.assign({},dimVals),
     roaster:$("log-roaster").value.trim(),
     notes:$("log-notes").value.trim()
   });
-  setLog(log);
+  let savedOk=setLog(log);
+  if(!savedOk&&log[0].photo){
+    log[0].photo=null;
+    savedOk=setLog(log);
+    if(savedOk) alert("Saved — but browser storage is nearly full, so the photo was left out.");
+  }
+  if(!savedOk){ alert("Could not save — browser storage is full. Delete some old log entries and try again."); return; }
   rating=0; paintStars(); pickedAroma.clear(); pickedFlavor.clear(); resetDims();
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
@@ -604,6 +655,11 @@ function saveBrew(){
   if($("log-time")) $("log-time").value="";
   if($("log-actual-note")) $("log-actual-note").textContent="";
   if(typeof pendingActualSec!=="undefined") pendingActualSec=null;
+  if(typeof pendingPhoto!=="undefined"&&pendingPhoto){
+    pendingPhoto=null;
+    const pf=$("log-photo-file"); if(pf) pf.value="";
+    const pw=$("log-photo-wrap"); if(pw) pw.classList.add("hidden");
+  }
   renderLog();
   alert("Saved to your brew log.");
 }
@@ -716,6 +772,7 @@ function renderLog(){
       <div class="sel"><span class="r">${stars}</span> ${esc(selLine)}</div>
       ${r?`<div class="meta">${esc(r)}${e.recipe.ice?` · ${e.recipe.ice}g ice`:""}</div>`:""}
       ${actLine?`<div class="meta">${esc(actLine)}</div>`:""}
+      ${e.photo?`<img data-photo="1" src="${e.photo}" alt="Brew photo" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-top:6px;cursor:pointer">`:""}
       ${dimHtml}
       ${notes.length?`<div class="notes">${notes.map(esc).join("<br>")}</div>`:""}
       <div style="margin-top:6px"><button type="button" class="btn ghost small" data-del="${e.id}" style="width:auto;padding:6px 14px;font-size:13px">Delete</button></div>
@@ -726,6 +783,14 @@ function renderLog(){
       if(!confirm("Delete this log entry?")) return;
       setLog(getLog().filter(e=>e.id!==+b.getAttribute("data-del")));
       renderLog();
+    };
+  });
+  box.querySelectorAll("[data-photo]").forEach(im=>{
+    im.onclick=()=>{
+      const pv=$("photo-view"), pvImg=$("photo-view-img");
+      if(!pv||!pvImg) return;
+      pvImg.src=im.src;
+      pv.classList.remove("pv-hidden");
     };
   });
 }
@@ -977,6 +1042,7 @@ function onSelChange(){ saveSel(); buildTunes(); lastRecipe=renderRecipe(); }
   buildChips("chips-aroma",AROMAS,pickedAroma);
   buildChips("chips-flavor",FLAVORS,pickedFlavor);
   wireScanner();
+  wirePhoto();
   selectAllOnFocus($("in-dose"));
   selectAllOnFocus($("log-roaster"));
   $("in-dose").placeholder=sel.style==="Iced"?"20":"15";
@@ -1103,5 +1169,6 @@ else initBrewTimer();
     <button id="bt-reset" class="btn ghost">Reset</button>
   </div>
 </div>
+<div id="photo-view" class="pv-hidden"><img id="photo-view-img" alt="Brew photo"></div>
 </body>
 </html>
