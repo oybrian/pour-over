@@ -499,21 +499,21 @@ function buildRecipe(){
     steps.push({t:totalTime, d:finishStep});
   }else if(pour==="3 pours"){
     const p1=bloom+Math.round((wTarget-bloom)/3), p2=bloom+Math.round((wTarget-bloom)*2/3);
-    steps.push({t:"0:00", d:`<b>Bloom:</b> pour <b>${bloom}g</b> at ${temp}°C in slow spirals, wetting all grounds. Swirl gently, then wait <b>${bloomTime} sec</b>.`});
+    steps.push({t:"0:00", d:`<b>Bloom:</b> pour <b>${bloom}g</b> at ${temp}°C in slow spirals, wetting all grounds. Swirl gently, then wait <b>${bloomTime} sec</b> in total, from the start of the pour.`});
     steps.push({t:"0:45", d:`<b>First pour:</b> pour to <b>${p1}g</b> total${hw}, slow spiral from the center outward (~30 sec), then let it draw down.`});
     steps.push({t:"1:30", d:`<b>Second pour:</b> pour to <b>${p2}g</b> total${hw}, keep it gentle (~20 sec), then let it draw down.`});
     steps.push({t:"2:15", d:`<b>Third pour:</b> pour to <b>${wTarget}g</b> total${hw}. Keep the water level high and the pour gentle.`});
     steps.push({t:"~2:45", d:`Gentle swirl to flatten the coffee bed for an even drawdown.`});
     steps.push({t:totalTime, d:finishStep});
   }else if(iced){
-    steps.push({t:"0:00", d:`<b>Bloom:</b> pour <b>${bloom}g</b> at ${temp}°C in slow spirals. Swirl the dripper gently, then wait.`});
+    steps.push({t:"0:00", d:`<b>Bloom:</b> pour <b>${bloom}g</b> at ${temp}°C in slow spirals. Swirl the dripper gently, then wait until <b>0:45</b>.`});
     steps.push({t:"0:45", d:`<b>First pour:</b> pour to <b>${bloom+Math.round((hotWater-bloom)*0.55)}g</b> total hot water, spiral from the center outward (~30 sec).`});
     steps.push({t:"1:15", d:`<b>Second pour:</b> pour to <b>${hotWater}g</b> total hot water. Keep it gentle — the ice below is already chilling the brew.`});
     steps.push({t:"~1:45", d:`Give the dripper a gentle swirl to flatten the bed.`});
     steps.push({t:"2:30–3:00", d:finishStep});
   }else{
     const p1=bloom+Math.round((water-bloom)*0.55);
-    steps.push({t:"0:00", d:`<b>Bloom:</b> pour <b>${bloom}g</b> at ${temp}°C in slow spirals, wetting all grounds. Swirl gently, then wait <b>${bloomTime} sec</b>.`});
+    steps.push({t:"0:00", d:`<b>Bloom:</b> pour <b>${bloom}g</b> at ${temp}°C in slow spirals, wetting all grounds. Swirl gently, then wait <b>${bloomTime} sec</b> in total, from the start of the pour.`});
     steps.push({t:"0:45", d:`<b>First pour:</b> pour to <b>${p1}g</b> total, slow spiral from the center outward (~30 sec).`});
     steps.push({t:"1:15", d:`<b>Second pour:</b> pour to <b>${water}g</b> total. Keep the water level high and the pour gentle (~20 sec), then let it draw down.`});
     steps.push({t:"~1:45", d:`Gentle swirl to flatten the coffee bed for an even drawdown.`});
